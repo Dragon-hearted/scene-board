@@ -1,0 +1,19 @@
+{
+  "name": "adcelerate-scene-board",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "CLI-driven storyboard creation system that transforms video briefs into professional storyboards with scripts, timestamps, voice scripts, and NanoBanana Pro prompts for visual generation",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "test": "bun test",
+    "lint": "bunx @biomejs/biome check .",
+    "check": "bunx @biomejs/biome check --write ."
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.0",
+    "@types/bun": "latest",
+    "typescript": "^5.7.0"
+  }
+}
