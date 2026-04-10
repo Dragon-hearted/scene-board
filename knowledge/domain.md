@@ -17,6 +17,7 @@ SceneBoard takes a video brief of any format and produces a professional storybo
 - **Shot/Scene**: A single continuous visual in the video. Each shot change marks a new scene. One shot = one image to generate via NanoBanana Pro.
 - **NanoBanana Pro**: Image generation model (fal.ai `fal-ai/nanobanana-pro`). Key constraints: 8192 char prompt limit, 512 char system instruction, up to 3 reference images. Creative modes: Faithful (exact adherence), Expressive (creative liberties), Vision (artistic concept), Image Asset (single photo/illustration). Known limitation: all text rendering is garbled. Full prompt guide at `_bmad/wds/workflows/4-ux-design/data/guides/NANO-BANANA-PROMPT-GUIDE.md`.
 - **NanoBanana (Flash)**: Faster/cheaper variant via Google AI (Gemini 2.0 Flash Exp). Good for iterations and single assets. Pro tier recommended for final storyboard visuals.
+- **Kling**: AI video generation model (fal.ai image-to-video). Takes a NanoBanana Pro still image as the anchor frame and animates it into a video clip. Supports up to 15s duration at 1080p. SceneBoard uses image-to-video mode exclusively — the prompt describes motion, camera movement, and animation direction rather than scene visuals (those are already in the image). Negative prompts prevent artifacts like morphing, sliding feet, and jitter. Full prompt guide at `_bmad/wds/workflows/4-ux-design/data/guides/KLING-VIDEO-PROMPT-GUIDE.md`.
 - **Voice Script**: Narration/dialogue audio for the video. Not always needed — SceneBoard asks whether the video requires it.
 - **On-Screen Script/Text**: Text overlays that appear visually in the video. Not always needed — SceneBoard asks whether the video requires it.
 - **Dynamic Workflow**: The core design principle — any component provided in the brief is locked in; any component missing is generated with options for approval. This applies uniformly to every part of the storyboard.
@@ -127,6 +128,56 @@ SceneBoard must autonomously determine the best marketing/engagement framework b
 - **Ask, don't assume**: For anything that could go multiple ways (shot duration, voice script needed, on-screen text needed, platform, aspect ratio), always ask the user rather than making assumptions.
 - **Style consistency is enforced through a Style Anchor document generated once and carried into every scene prompt. Without this, scenes drift into visually unrelated images — the #2 failure mode after prompt/visual mismatch.**
 
+## Client System
+
+SceneBoard supports per-client brand knowledge that is loaded automatically when generating storyboards.
+
+### Directory Structure
+
+```
+systems/scene-board/clients/
+  {client-slug}/
+    brand.md              # Compiled brand profile (quick-reference)
+    knowledge/            # Detailed brand knowledge files
+      brand-positioning.md  # Full brand positioning & strategy
+      visual-direction.md   # Visual identity & art direction
+    storyboards/          # Generated storyboard outputs
+      {project-name}-v{N}.md   # Markdown storyboard
+      {project-name}-v{N}.pdf  # PDF storyboard
+```
+
+### How Brand Knowledge Is Loaded
+
+1. **Stage 0 (Client Selection)** of the Generate Storyboard pipeline asks which client the storyboard is for.
+2. If a client is selected, `brand.md` is read into context — providing brand voice, style philosophy, target audience, visual direction, and competitive positioning.
+3. Detailed knowledge files from `knowledge/` are loaded for deeper context (art direction principles, photoshoot concepts, etc.).
+4. This pre-loaded context **eliminates most brand-related questions** in Stage 2 (Context Gathering), accelerating the pipeline.
+5. The brand context also informs the Style Anchor in Stage 5, ensuring visual consistency with the client's established identity.
+
+### Client Management
+
+The `[MC] Manage Client` capability allows creating or updating client profiles through a guided workflow. See `manage-client.md`.
+
+## PDF Output
+
+SceneBoard generates professional PDF storyboards alongside the markdown output.
+
+### PDF Format
+
+The PDF follows a professional tabular layout:
+
+1. **Project Specs Header** — A header table with: Duration, Format, Style, Product, Model, Setting, Audio
+2. **Scene-by-Scene Table** — Columns: Seq, Scene, Visual Action & Composition, Audience Sees, Audio/Text
+3. **Production Notes** — Color palette, lighting approach, camera style, text style, music direction
+4. **B-Roll Shots** — If applicable, recommended B-roll shots with descriptions
+
+### Output Location
+
+- **With client context**: `systems/scene-board/clients/{client}/storyboards/{project-name}-v{N}.pdf`
+- **Without client context**: User-specified location
+
+Both markdown and PDF versions are saved. Previous versions are preserved (not overwritten) when iterating.
+
 ## Dependencies
 - Marketing/Sales/Social/Ads skills from Adcelerate skill library:
   - `ad-creative` — ad scripts, headlines, variations
@@ -203,3 +254,36 @@ Prompt (1200 chars):
 - Describes camera angle and depth of field (not layout structure)
 - Specifies lighting mood and time of day (not design tokens)
 - Ends with "No text in image" (NanoBanana text limitation)
+
+## Kling — Scene-Level Video Prompt Guide
+
+The Kling prompt guide (`_bmad/wds/workflows/4-ux-design/data/guides/KLING-VIDEO-PROMPT-GUIDE.md`) covers the full image-to-video prompting methodology. This section bridges those patterns to storyboard scene animation.
+
+### Image-to-Video vs Text-to-Video
+
+SceneBoard exclusively uses image-to-video mode. The NanoBanana Pro output for each scene is the anchor frame. This means:
+- The prompt does NOT re-describe the visual scene — the image already contains it
+- The prompt focuses on: subject motion, secondary motion, camera movement, and atmospheric dynamics
+- Style consistency is guaranteed by the source image — no style anchor repetition needed in the video prompt
+
+### Scene-Level Video Prompt Structure
+
+1. **Subject motion** — What the main subject physically does. Specific gestures, actions, expressions changing. Include physics: weight transfer, fabric movement, hair sway.
+2. **Secondary motion** — Environment animation: wind, reflections, background people, particles, light changes.
+3. **Camera motion** — How the camera behaves over the clip duration. Use specific keywords: static, slow pan, tracking, dolly, handheld drift, push in.
+4. **Atmosphere** — Ambient dynamics that sell the scene: light shifting, dust motes, lens flare movement.
+
+### Worked Example
+
+**Scene 5 — Cream Pineapple Shirt Walk (1.5s scene)**
+
+Mode: image-to-video | Duration: 5s | Source: Scene 5 NanoBanana Pro output
+
+Motion & Animation Direction:
+"The guy strolls across the court with one hand in his pocket. His camp collar shirt sways gently with each step — the cream fabric catching and releasing golden light. Wide-leg jorts move with a lazy rhythm. His wavy hair bounces slightly. A basketball rolls slowly in the background."
+
+Camera Motion:
+"Handheld drift — binocular POV micro-movements. No deliberate pan. Subtle organic instability."
+
+Negative Prompt:
+"morphing, sliding feet, cartoonish, jittery motion, distorted face, text morphing, floating limbs"

@@ -1,0 +1,30 @@
+[
+  {
+    "tool_name": "Bash",
+    "tool_use_id": "toolu_019HGuiRViX6jYz8UH6jiBqu",
+    "session_id": "09c27bf9-4360-4f57-b9c9-d52e96b2f841",
+    "hook_event_name": "PostToolUse",
+    "is_mcp_tool": false
+  },
+  {
+    "tool_name": "Bash",
+    "tool_use_id": "toolu_01PZUiBhgohTE8VWLjLqAwN4",
+    "session_id": "09c27bf9-4360-4f57-b9c9-d52e96b2f841",
+    "hook_event_name": "PostToolUse",
+    "is_mcp_tool": false
+  },
+  {
+    "tool_name": "mcp__plugin_discord_discord__reply",
+    "tool_use_id": "toolu_01SUUKsAXNb1M2h2ZYGyBtg4",
+    "session_id": "09c27bf9-4360-4f57-b9c9-d52e96b2f841",
+    "hook_event_name": "PostToolUse",
+    "is_mcp_tool": true,
+    "mcp_server": "plugin_discord_discord",
+    "mcp_tool_name": "reply",
+    "input_keys": [
+      "chat_id",
+      "text",
+      "files"
+    ]
+  }
+]

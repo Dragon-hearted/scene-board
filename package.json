@@ -8,9 +8,12 @@
     "build": "bun build src/index.ts --outdir dist --target bun",
     "test": "bun test",
     "lint": "bunx @biomejs/biome check .",
-    "check": "bunx @biomejs/biome check --write ."
+    "check": "bunx @biomejs/biome check --write .",
+    "generate-pdf": "bash scripts/generate-pdf.sh"
   },
-  "dependencies": {},
+  "dependencies": {
+    "md-to-pdf": "^5.2.4"
+  },
   "devDependencies": {
     "@biomejs/biome": "^1.9.0",
     "@types/bun": "latest",

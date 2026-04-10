@@ -1,0 +1,28 @@
+[
+  {
+    "tool_name": "Bash",
+    "tool_use_id": "toolu_01PZUiBhgohTE8VWLjLqAwN4",
+    "session_id": "09c27bf9-4360-4f57-b9c9-d52e96b2f841",
+    "hook_event_name": "PreToolUse",
+    "tool_summary": {
+      "tool_name": "Bash",
+      "command": "ls -la /Users/dragonhearted/Desktop/Adcelerate/systems/scene-board/clients/vindof/storyboards/binocular-court-showcase-v1.pdf",
+      "description": "Verify PDF was created"
+    }
+  },
+  {
+    "tool_name": "mcp__plugin_discord_discord__reply",
+    "tool_use_id": "toolu_01SUUKsAXNb1M2h2ZYGyBtg4",
+    "session_id": "09c27bf9-4360-4f57-b9c9-d52e96b2f841",
+    "hook_event_name": "PreToolUse",
+    "tool_summary": {
+      "tool_name": "mcp__plugin_discord_discord__reply",
+      "mcp_tool": "mcp__plugin_discord_discord__reply",
+      "input_keys": [
+        "chat_id",
+        "text",
+        "files"
+      ]
+    }
+  }
+]

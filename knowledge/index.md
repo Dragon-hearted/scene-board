@@ -20,7 +20,7 @@ SceneBoard transforms video briefs of any format into professional storyboards t
 3. **Dynamic Generation & Approval** — Generate draft script and scene structure; present for approval before continuing
 4. **Scene Breakdown** — Expand approved structure into full scene-by-scene breakdowns with timestamps
 5. **Visual Direction** — Add framing, composition, and visual direction notes per scene
-6. **NanoBanana Prompt Generation** — Produce NanoBanana Pro image prompts for each scene
+6. **NanoBanana & Kling Prompt Generation** — Produce NanoBanana Pro image prompts and Kling image-to-video motion prompts for each scene
 7. **Final Assembly** — Compile the complete storyboard document with all layers
 
 ## Knowledge Files
@@ -33,3 +33,4 @@ SceneBoard transforms video briefs of any format into professional storyboards t
 ## Cross-References
 - Skills: ad-creative, copywriting, social-content, marketing-psychology, paid-ads, sales-enablement, content-strategy
 - External guide: `_bmad/wds/workflows/4-ux-design/data/guides/NANO-BANANA-PROMPT-GUIDE.md`
+- External guide: `_bmad/wds/workflows/4-ux-design/data/guides/KLING-VIDEO-PROMPT-GUIDE.md`

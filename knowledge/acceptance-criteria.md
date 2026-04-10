@@ -46,6 +46,17 @@ These criteria are binary pass/fail and must all be satisfied before a storyboar
 - [ ] Every prompt explicitly specifies one of the four creative modes: Faithful, Expressive, Vision, or Image Asset
 - [ ] Every scene that requires text rendering (title cards, CTAs, text overlays) is marked for Remotion treatment rather than NanoBanana Pro generation
 
+### Kling Video Prompts
+
+- [ ] Every scene that has a NanoBanana Pro prompt also has a corresponding Kling video prompt
+- [ ] Scenes rendered via Remotion (text cards, CTAs) do NOT have Kling video prompts
+- [ ] Every Kling prompt specifies mode as `image-to-video`
+- [ ] Every Kling prompt specifies a duration (`5s` or `10s`)
+- [ ] Every Kling prompt includes a motion & animation direction section describing subject movement
+- [ ] Every Kling prompt includes a camera motion section
+- [ ] Every Kling prompt includes a negative prompt
+- [ ] No Kling prompt re-describes the visual scene (motion only — visuals come from the NanoBanana source image)
+
 ### Storyboard Document Structure
 
 - [ ] The final storyboard document contains all of the following sections: scene-by-scene breakdown, timestamps, approved script (if applicable), approved voice script (if applicable), on-screen text (if applicable), visual direction per scene, NanoBanana Pro prompts per scene, reference image guidance per scene
@@ -86,6 +97,10 @@ Each scene's visual direction must be specific enough that a designer could exec
 
 The #1 failure mode is prompt/visual mismatch — prompts that generate the wrong product, the wrong style, or visuals that feel generic. **Prompt specificity** is the primary signal: each prompt must name the product or subject concretely, specify the brand's visual identity elements, and include enough compositional detail that the generated image would immediately be recognized as belonging to this storyboard. **Reference image alignment** means any reference images cited in a scene's guidance are stylistically and compositionally consistent with the prompt — they should reinforce the same visual direction, not introduce contradictions. **Mode selection appropriateness** should be evaluated: Faithful mode for product accuracy, Expressive for creative campaigns, Vision for abstract/conceptual scenes, Image Asset for isolated graphics.
 
+### Kling Video Prompt Quality
+
+The Kling video prompts should read as confident directorial instructions — not vague suggestions. **Motion specificity** is the primary signal: prompts should describe physics, timing, and gesture with enough detail that the generated clip would match the storyboard's intent. "She walks across the court" is insufficient; "She strolls with one hand in her pocket, camp collar shirt swaying with each step, wavy hair bouncing slightly" gives the model actionable physics. **Camera intent** must serve the narrative — a push-in during a reveal, static for a calm moment, handheld drift for POV shots. Camera motion that contradicts the scene's emotional beat fails this criterion. **Source image coherence** means the motion described must be physically possible given what's shown in the NanoBanana anchor frame — no contradictions between the still and the motion direction.
+
 ### Platform and Pacing Awareness
 
 The storyboard's rhythm must feel native to the target platform. **Pacing** is assessed by reviewing shot durations: ads (15–30s) should have short, high-impact shots; TikTok/Reels should feel fast-cut; brand stories (60s+) should have longer holds that allow emotional beats to land. **Tone calibration** means the script's voice and the visual direction's energy match the platform's content norms — LinkedIn requires professional restraint, TikTok rewards authenticity and energy, YouTube allows more depth. A storyboard that would feel out of place if natively published on its target platform fails this criterion.
@@ -114,6 +129,11 @@ Hard gates are designed to be verifiable without subjective judgment. The follow
 - **Approval gate completeness**: pipeline logs should show an approval event for every generated component before it was advanced
 - **Remotion flagging**: assert any scene whose on-screen text field is non-empty has a `render: remotion` flag rather than `render: nanobanana`
 - **Platform aspect ratio consistency**: assert the declared aspect ratio matches the declared platform using a lookup table
+- **Kling prompt presence**: assert every scene with a NanoBanana prompt also has a Kling video prompt block
+- **Kling mode check**: assert every Kling prompt block specifies `image-to-video`
+- **Kling duration check**: assert every Kling prompt block specifies a duration of `5s` or `10s`
+- **Kling motion presence**: assert every Kling prompt block has non-empty motion direction and camera motion fields
+- **Kling negative prompt presence**: assert every Kling prompt block has a non-empty negative prompt
 
 ### Human Review Checklist
 
@@ -127,3 +147,6 @@ Before delivery, a human reviewer should assess the soft criteria by going throu
 6. Is the document presentation quality high enough to share directly with a client?
 7. If the brief contained contradictions, was the resolution approach surfaced and approved before the storyboard was built?
 8. If a reference video was provided, does the storyboard clearly reflect what the client wanted to keep and what they wanted to change?
+9. Do the Kling video prompts describe specific, physically plausible motion for each scene?
+10. Does the camera motion in each Kling prompt serve the scene's emotional intent?
+11. Are the Kling motion directions consistent with what's shown in the NanoBanana anchor images?
