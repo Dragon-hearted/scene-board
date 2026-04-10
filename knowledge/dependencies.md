@@ -51,6 +51,8 @@ _APIs, models, or services the system depends on._
 |---------|---------|---------------|
 | NanoBanana Pro (fal.ai) | Visual generation from scene prompts | Storyboard images unavailable; text-only output still deliverable |
 | NanoBanana Flash (Google AI) | Fast scene concept iteration | Fallback to Pro only; slower iteration |
+| Kling (fal.ai) | Image-to-video generation from scene stills + motion prompts | Storyboard video clips unavailable; still images from NanoBanana still deliverable |
 
 ## Reference Files
 - NanoBanana prompt guide: `_bmad/wds/workflows/4-ux-design/data/guides/NANO-BANANA-PROMPT-GUIDE.md`
+- Kling video prompt guide: `_bmad/wds/workflows/4-ux-design/data/guides/KLING-VIDEO-PROMPT-GUIDE.md`

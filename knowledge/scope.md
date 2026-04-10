@@ -13,15 +13,19 @@ SceneBoard is a CLI-driven storyboard creation system that transforms video brie
 - Script generation using marketing, sales, social media, user engagement, and ads domain skills
 - Professional storyboard output with: scene descriptions, timestamps, script lines, voice script, and visual direction
 - NanoBanana Pro prompt generation for each scene/visual
+- Kling image-to-video prompt generation for each scene — takes NanoBanana Pro stills as input frames and describes motion, camera, and animation direction
 - Reference image guidance alongside prompts (what to look for, what to generate)
 - CLI interface with interactive approval gates
 - Knowledge gathering phase — collect all context needed before generation begins
+- **Client knowledge management** — per-client brand profiles stored at `systems/scene-board/clients/{client}/` with brand positioning, visual direction, and voice guidelines that are auto-loaded when generating storyboards
+- **PDF storyboard generation** — professional tabular PDF output alongside markdown, with project specs header, scene-by-scene table, production notes, and B-roll sections
 
 ## Out of Scope
 - Direct visual/image generation (future integration — prompts only for now)
 - Video rendering or editing
 - Audio/voiceover generation
 - Direct integration with NanoBanana Pro API (outputs prompts, does not call the API)
+- Direct integration with Kling API (outputs video prompts, does not call the API)
 - Client-facing web UI (CLI only for v1)
 
 ## Inputs
@@ -36,6 +40,7 @@ SceneBoard is a CLI-driven storyboard creation system that transforms video brie
   - Voice script (narration/dialogue per scene)
   - Visual direction per scene
   - NanoBanana Pro prompts per scene for visual generation
+  - Kling video prompts per scene (motion direction, camera motion, negative prompts)
   - Reference image guidance per scene
 
 ## Target Users
