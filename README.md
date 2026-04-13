@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🎬 SceneBoard
+![SceneBoard](images/hero.svg)
 
 ### CLI-driven storyboard creation system that transforms video briefs of any format into professional storyboards with scripts, timestamps, voice scripts, and NanoBanana Pro prompts for visual generation — leveraging marketing, sales, social media, and ads skills
 
@@ -51,6 +51,8 @@
 ---
 
 ## 🏗 Architecture
+
+![Pipeline](images/pipeline.svg)
 
 SceneBoard processes data through a multi-stage pipeline:
 
@@ -126,6 +128,9 @@ scene-board/
 │   ├── README.md
 │   └── vindof
 │       └── brand.md
+├── images
+│   ├── hero.svg
+│   └── pipeline.svg
 ├── justfile
 ├── knowledge
 │   ├── acceptance-criteria.md
