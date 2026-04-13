@@ -54,24 +54,7 @@
 
 ![Pipeline](images/pipeline.svg)
 
-SceneBoard processes data through a multi-stage pipeline:
-
-```mermaid
-flowchart LR
-    SceneBoard_stage_0[brief-intake]
-    SceneBoard_stage_1[context-gathering]
-    SceneBoard_stage_0 --> SceneBoard_stage_1
-    SceneBoard_stage_2[dynamic-generation-approval]
-    SceneBoard_stage_1 --> SceneBoard_stage_2
-    SceneBoard_stage_3[scene-breakdown]
-    SceneBoard_stage_2 --> SceneBoard_stage_3
-    SceneBoard_stage_4[visual-direction]
-    SceneBoard_stage_3 --> SceneBoard_stage_4
-    SceneBoard_stage_5[nanobanana-prompt-generation]
-    SceneBoard_stage_4 --> SceneBoard_stage_5
-    SceneBoard_stage_6[final-assembly]
-    SceneBoard_stage_5 --> SceneBoard_stage_6
-```
+SceneBoard processes data through a multi-stage pipeline.
 
 ---
 
