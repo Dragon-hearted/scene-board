@@ -121,38 +121,12 @@ scene-board/
 │   ├── domain.md
 │   ├── history.md
 │   ├── index.md
-│   ├── nanobanana-pro-prompt-guide.md
 │   └── scope.md
-├── logs
-│   ├── 51e51611-824d-4bd6-98cf-fd8997a9b124
-│   │   ├── post_tool_use.json
-│   │   └── pre_tool_use.json
-│   ├── 594d7889-ff90-4fb5-884b-0947388f5b63
-│   │   ├── chat.json
-│   │   ├── post_tool_use.json
-│   │   ├── pre_tool_use.json
-│   │   └── stop.json
-│   ├── 92c582c5-a921-46ae-8774-87bc95ed7328
-│   │   ├── chat.json
-│   │   ├── post_tool_use.json
-│   │   ├── pre_tool_use.json
-│   │   └── stop.json
-│   ├── b83490d0-4629-4ce9-84de-cdd521140d17
-│   │   ├── post_tool_use.json
-│   │   └── pre_tool_use.json
-│   ├── fd934b4d-ac7a-486f-b0e1-c9f5bdce9699
-│   │   ├── post_tool_use.json
-│   │   ├── post_tool_use_failure.json
-│   │   └── pre_tool_use.json
-│   └── session_end.json
 ├── package.json
 ├── scripts
 │   └── generate-pdf.sh
 ├── src
-│   ├── batch-generator.ts
-│   ├── image-client.ts
-│   ├── index.ts
-│   └── storyboard-assembler.ts
+│   └── index.ts
 ├── templates
 │   ├── pdf-storyboard-template.md
 │   ├── pdf-styles.css
