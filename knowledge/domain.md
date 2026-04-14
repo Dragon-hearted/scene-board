@@ -15,9 +15,9 @@ SceneBoard takes a video brief of any format and produces a professional storybo
 ## Domain Concepts
 - **Brief**: The input to SceneBoard. Can be anything — an Instagram link with proposed changes, a detailed document with everything specified, a raw idea, a script, a voice script, or any combination. There is no fixed format.
 - **Shot/Scene**: A single continuous visual in the video. Each shot change marks a new scene. One shot = one image to generate via NanoBanana Pro.
-- **NanoBanana Pro**: Image generation model (fal.ai `fal-ai/nanobanana-pro`). Key constraints: 8192 char prompt limit, 512 char system instruction, up to 3 reference images. Creative modes: Faithful (exact adherence), Expressive (creative liberties), Vision (artistic concept), Image Asset (single photo/illustration). Known limitation: all text rendering is garbled. Full prompt guide at `_bmad/wds/workflows/4-ux-design/data/guides/NANO-BANANA-PROMPT-GUIDE.md`.
-- **NanoBanana (Flash)**: Faster/cheaper variant via Google AI (Gemini 2.0 Flash Exp). Good for iterations and single assets. Pro tier recommended for final storyboard visuals.
-- **Kling**: AI video generation model (fal.ai image-to-video). Takes a NanoBanana Pro still image as the anchor frame and animates it into a video clip. Supports up to 15s duration at 1080p. SceneBoard uses image-to-video mode exclusively — the prompt describes motion, camera movement, and animation direction rather than scene visuals (those are already in the image). Negative prompts prevent artifacts like morphing, sliding feet, and jitter. Full prompt guide at `_bmad/wds/workflows/4-ux-design/data/guides/KLING-VIDEO-PROMPT-GUIDE.md`.
+- **NanoBanana Pro**: Image generation via WisGate API through ImageEngine gateway. Key constraints: 8192 char prompt limit, 512 char system instruction, up to 14 reference images (6 objects + 5 humans). Creative modes: Faithful (exact adherence), Expressive (creative liberties), Vision (artistic concept), Image Asset (single photo/illustration). Supports multi-turn editing capability. Model tiers: `gemini-3-pro-image-preview` (Pro), `gemini-3.1-flash-image-preview` (Nano Banana 2/Flash), `gemini-2.5-flash-image` (economical). Known limitation: all text rendering is garbled. Full prompt guide at `systems/prompt-writer/knowledge/models/image/nanobanana-pro.md`.
+- **NanoBanana (Flash)**: High-efficiency variant via WisGate: `gemini-3.1-flash-image-preview` (Nano Banana 2) and `gemini-2.5-flash-image` (economical). Accessed through ImageEngine. Good for iterations and single assets. Pro tier recommended for final storyboard visuals.
+- **Kling**: AI video generation model (fal.ai image-to-video). Takes a NanoBanana Pro still image as the anchor frame and animates it into a video clip. Supports up to 15s duration at 1080p. SceneBoard uses image-to-video mode exclusively — the prompt describes motion, camera movement, and animation direction rather than scene visuals (those are already in the image). Negative prompts prevent artifacts like morphing, sliding feet, and jitter. Prompt guide: `systems/prompt-writer/knowledge/models/video/kling.md`.
 - **Voice Script**: Narration/dialogue audio for the video. Not always needed — SceneBoard asks whether the video requires it.
 - **On-Screen Script/Text**: Text overlays that appear visually in the video. Not always needed — SceneBoard asks whether the video requires it.
 - **Dynamic Workflow**: The core design principle — any component provided in the brief is locked in; any component missing is generated with options for approval. This applies uniformly to every part of the storyboard.
@@ -44,6 +44,18 @@ SceneBoard takes a video brief of any format and produces a professional storybo
 - NanoBanana Pro prompts and reference guidance are mismatched or low quality
 - Script doesn't capture the brief's intent, energy, or feeling
 - Visual direction doesn't reflect the story or isn't understandable by the audience
+
+### Scene-to-Scene Consistency Protocol
+
+Visual consistency across scenes is enforced at three cumulative levels:
+
+1. **Style Anchor Preamble** (baseline): A 200-400 char condensed visual identity included verbatim at the start of every NanoBanana Pro prompt. Handles: color palette, photographic style, lighting mood, camera conventions.
+
+2. **Character Consistency Protocol** (subject-level): A locked physical description of the primary model defined in the Style Anchor and repeated verbatim in every scene prompt featuring that character. Handles: skin tone, hair, build, expression range, clothing continuity, distinguishing features.
+
+3. **Reference Image Feedback Loops** (pixel-level): Generated images from earlier scenes are passed as `referenceImageIds` to subsequent scenes via the batch generator's `dependsOn` mechanism. This gives NanoBanana Pro a visual anchor for face/body/environment consistency that text descriptions alone cannot achieve. Scene 1 establishes the visual baseline; Scenes 2-N reference Scene 1's output.
+
+The three levels are cumulative — each adds precision on top of the previous. The Style Anchor provides broad consistency. The Character Protocol adds subject-level precision. Reference feedback provides pixel-level visual anchoring.
 
 ## Edge Cases & Gotchas
 
@@ -95,6 +107,39 @@ Since NanoBanana Pro cannot render text reliably (garbled output):
 - For title cards, CTA screens, text overlays — use Remotion skill for text rendering
 - Future: find a better alternative to handle text in visuals
 - Storyboard should clearly mark which scenes need text overlay treatment vs. pure image generation
+
+## Image Generation Workflow
+
+SceneBoard integrates with ImageEngine (running on localhost:3002) for actual image generation. ImageEngine wraps the WisGate API and handles rate limiting, budget management, and cost tracking.
+
+### Integration Architecture
+- **HTTP Client**: `src/image-client.ts` — typed client for all ImageEngine endpoints
+- **Batch Generator**: `src/batch-generator.ts` — orchestrates parallel/sequential generation for all scenes
+- **Storyboard Assembler**: `src/storyboard-assembler.ts` — injects generated image URLs into storyboard documents
+
+### Model Selection
+- Use `gemini-2.5-flash-image` or `gemini-3.1-flash-image-preview` during iteration (fast, economical)
+- Use `gemini-3-pro-image-preview` for final storyboard output (highest quality)
+
+### Parallel vs Sequential Generation
+- **Independent scenes** (no cross-references): generated in parallel via batch endpoint
+- **Dependent scenes** (scene B references scene A's output): generated sequentially — scene A completes first, its image is passed as a reference for scene B
+
+### Reference Feedback Loops
+- Generated image from scene A can be passed as a reference for scene B
+- ImageEngine supports up to 14 reference images per request (6 objects + 5 humans)
+- Previous generations can be loaded as references via `POST /api/gallery/:id/use-as-reference`
+
+### Re-Generation
+- Individual scene re-gen via `generateSingle()` in image-client
+- Full re-gen via `generateBatch()` with updated prompts
+- Re-generation does not affect other scenes' approved images
+
+### Budget Awareness
+- Budget is checked before batch generation starts
+- If token spend exceeds 80% of ceiling, user is warned
+- If ceiling is exceeded, generation stops (402 response from ImageEngine)
+- Budget override available via `X-Budget-Override: true` header for emergencies
 
 ## Tacit Knowledge
 
@@ -187,8 +232,8 @@ Both markdown and PDF versions are saved. Previous versions are preserved (not o
   - `paid-ads` — campaign strategy, targeting
   - `sales-enablement` — pitch decks, demo scripts
   - `content-strategy` — editorial planning
-- NanoBanana Pro — image generation model via fal.ai. Prompt guide: `_bmad/wds/workflows/4-ux-design/data/guides/NANO-BANANA-PROMPT-GUIDE.md`
-- NanoBanana (Flash) — faster variant via Google AI for iterations
+- ImageEngine — centralized image generation gateway via WisGate API (wraps Gemini models). Prompt guide: `systems/prompt-writer/knowledge/models/image/nanobanana-pro.md`
+- ImageEngine Flash models — faster/cheaper variants (gemini-3.1-flash, gemini-2.5-flash) via ImageEngine
 - Remotion — for text-heavy scenes (title cards, CTAs) since NanoBanana can't render text
 
 ## Input/Output Specifications
@@ -210,7 +255,7 @@ Both markdown and PDF versions are saved. Previous versions are preserved (not o
 
 ## NanoBanana Pro — Scene-Level Prompt Guide
 
-The NanoBanana Pro prompt guide (`_bmad/wds/workflows/4-ux-design/data/guides/NANO-BANANA-PROMPT-GUIDE.md`) is written for UX and web design use cases. This section bridges those patterns to video storyboard scene prompts.
+The comprehensive NanoBanana Pro prompt guide (`systems/prompt-writer/knowledge/models/image/nanobanana-pro.md`) covers prompt anatomy, creative modes, subject/environment/lighting best practices, reference image strategy, and worked examples tailored for SceneBoard storyboard scenes. This section summarizes the key patterns for quick reference.
 
 ### Translating UX Prompt Patterns to Scene Prompts
 
@@ -255,35 +300,10 @@ Prompt (1200 chars):
 - Specifies lighting mood and time of day (not design tokens)
 - Ends with "No text in image" (NanoBanana text limitation)
 
-## Kling — Scene-Level Video Prompt Guide
+## Kling — Video Prompt Guide
 
-The Kling prompt guide (`_bmad/wds/workflows/4-ux-design/data/guides/KLING-VIDEO-PROMPT-GUIDE.md`) covers the full image-to-video prompting methodology. This section bridges those patterns to storyboard scene animation.
+> **Moved:** The Kling prompt guide has been migrated to the centralized PromptWriter system.
 
-### Image-to-Video vs Text-to-Video
+See `systems/prompt-writer/knowledge/models/video/kling.md` for the comprehensive Kling prompt guide.
 
-SceneBoard exclusively uses image-to-video mode. The NanoBanana Pro output for each scene is the anchor frame. This means:
-- The prompt does NOT re-describe the visual scene — the image already contains it
-- The prompt focuses on: subject motion, secondary motion, camera movement, and atmospheric dynamics
-- Style consistency is guaranteed by the source image — no style anchor repetition needed in the video prompt
-
-### Scene-Level Video Prompt Structure
-
-1. **Subject motion** — What the main subject physically does. Specific gestures, actions, expressions changing. Include physics: weight transfer, fabric movement, hair sway.
-2. **Secondary motion** — Environment animation: wind, reflections, background people, particles, light changes.
-3. **Camera motion** — How the camera behaves over the clip duration. Use specific keywords: static, slow pan, tracking, dolly, handheld drift, push in.
-4. **Atmosphere** — Ambient dynamics that sell the scene: light shifting, dust motes, lens flare movement.
-
-### Worked Example
-
-**Scene 5 — Cream Pineapple Shirt Walk (1.5s scene)**
-
-Mode: image-to-video | Duration: 5s | Source: Scene 5 NanoBanana Pro output
-
-Motion & Animation Direction:
-"The guy strolls across the court with one hand in his pocket. His camp collar shirt sways gently with each step — the cream fabric catching and releasing golden light. Wide-leg jorts move with a lazy rhythm. His wavy hair bounces slightly. A basketball rolls slowly in the background."
-
-Camera Motion:
-"Handheld drift — binocular POV micro-movements. No deliberate pan. Subtle organic instability."
-
-Negative Prompt:
-"morphing, sliding feet, cartoonish, jittery motion, distorted face, text morphing, floating limbs"
+SceneBoard uses Kling in image-to-video mode exclusively — the PromptWriter guide covers the full 4-layer prompt structure (subject motion, secondary motion, camera motion, atmosphere), camera keywords, negative prompt templates, and worked examples.
