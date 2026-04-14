@@ -14,6 +14,7 @@ _Required for the system to execute._
 | Dependency | Version | Purpose |
 |-----------|---------|---------|
 | (none) | — | SceneBoard is a CLI skill; no runtime npm dependencies required |
+| ImageEngine | localhost:3002 | Centralized image generation via WisGate with cost/rate management |
 
 ## Build Dependencies
 _Required for development and building._
@@ -49,10 +50,24 @@ _APIs, models, or services the system depends on._
 
 | Service | Purpose | Failure Impact |
 |---------|---------|---------------|
-| NanoBanana Pro (fal.ai) | Visual generation from scene prompts | Storyboard images unavailable; text-only output still deliverable |
-| NanoBanana Flash (Google AI) | Fast scene concept iteration | Fallback to Pro only; slower iteration |
+| ImageEngine (wraps WisGate API) | Visual generation from scene prompts via centralized gateway | Storyboard images unavailable; text-only output still deliverable |
+| ImageEngine Flash models | Fast scene concept iteration via gemini-3.1-flash or gemini-2.5-flash | Fallback to Pro model only; slower iteration |
 | Kling (fal.ai) | Image-to-video generation from scene stills + motion prompts | Storyboard video clips unavailable; still images from NanoBanana still deliverable |
 
+## System Dependencies
+_Other Adcelerate systems this system depends on._
+
+| System | Relationship | Purpose |
+|--------|-------------|---------|
+| PromptWriter | runtime dependency | Centralized prompt engineering knowledge for NanoBanana Pro, Kling, and all generation models. Stage 6 references prompt-writer model files. |
+
 ## Reference Files
-- NanoBanana prompt guide: `_bmad/wds/workflows/4-ux-design/data/guides/NANO-BANANA-PROMPT-GUIDE.md`
-- Kling video prompt guide: `_bmad/wds/workflows/4-ux-design/data/guides/KLING-VIDEO-PROMPT-GUIDE.md`
+- NanoBanana prompt guide: `systems/prompt-writer/knowledge/models/image/nanobanana-pro.md` (centralized in PromptWriter)
+- Kling video prompt guide: `systems/prompt-writer/knowledge/models/video/kling.md` (centralized in PromptWriter)
+- Visual direction: `systems/prompt-writer/knowledge/visual-direction/` (shot types, composition, lighting)
+
+## Environment Variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| IMAGE_ENGINE_URL | http://localhost:3002 | ImageEngine API base URL |
