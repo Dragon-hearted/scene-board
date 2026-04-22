@@ -40,11 +40,11 @@ These criteria are binary pass/fail and must all be satisfied before a storyboar
 ### Character Sheet (Stage 4.5, optional)
 
 - [ ] When ≥2 protagonists are detected in the approved scene breakdown, a Character Sheet section exists in the final storyboard — unless the user explicitly declined at the offer prompt, and the decline is recorded in the pipeline log
-- [ ] Every character in the Character Sheet has a non-empty `lockedDescription` and all 6 views generated (`body-front`, `body-back`, `face-front`, `face-back`, `face-left`, `face-right`) — or an explicit `_failed_` marker in the storyboard cell for any missing view
-- [ ] The anchor view (`body-front`) is always generated with NanoBanana Pro (`gemini-3-pro-image-preview`); non-anchor views may use Flash (`gemini-2.5-flash-image`)
-- [ ] Every scene that features a named character from the Character Sheet includes exactly one view of that character (angle-matched via `pickViewForScene`) in its resolved `referenceImageIds`, subject to the 3-ref cap, with characters ordered by script appearance
-- [ ] When >3 characters appear in one scene, the resolved reference list contains one view for each of the first 3 characters (no Scene-1 anchor, no explicit refs)
-- [ ] On approval at the Stage 4.5 gate, the 6 PNG view files and `character.md` frontmatter are cached under `systems/scene-board/clients/{client}/characters/{slug}/` for future reuse
+- [ ] Every character in the Character Sheet has a non-empty `lockedDescription` and a generated composite `sheet.imageId` (or an explicit `_failed_` marker in the storyboard cell if generation errored)
+- [ ] The composite sheet is generated with NanoBanana Pro (`gemini-3-pro-image-preview`), aspect ratio `16:9`, image size `2K`
+- [ ] Every scene that features a named character from the Character Sheet includes that character's composite `sheet.imageId` in its resolved `referenceImageIds`, subject to the 3-ref cap, with characters ordered by script appearance
+- [ ] When >3 characters appear in one scene, the resolved reference list contains the sheet IDs for the first 3 characters (no Scene-1 anchor, no explicit refs)
+- [ ] On approval at the Stage 4.5 gate, `sheet.png` and `character.md` frontmatter (with the sheet image ID) are cached under `systems/scene-board/clients/{client}/characters/{slug}/` for future reuse
 
 ### NanoBanana Pro Prompts
 
@@ -152,8 +152,8 @@ Hard gates are designed to be verifiable without subjective judgment. The follow
 - **Kling duration check**: assert every Kling prompt block specifies a duration of `5s` or `10s`
 - **Kling motion presence**: assert every Kling prompt block has non-empty motion direction and camera motion fields
 - **Kling negative prompt presence**: assert every Kling prompt block has a non-empty negative prompt
-- **Character Sheet completeness** (when Stage 4.5 ran): assert every character in the registry has all 6 view keys present with a non-empty `imageId`, or an explicit failed marker in the rendered section
-- **Character-view coverage**: for each scene whose visual note references a character slug, assert the scene's `referenceImageIds` contains the image ID returned by `pickViewForScene(character, scene.cameraAngle)` — i.e., the correct angle-matched view is actually threaded into the scene prompt
+- **Character Sheet presence** (when Stage 4.5 ran): assert every character in the registry has `sheet.imageId` set to a non-empty string, or an explicit failed marker in the rendered section
+- **Character sheet reference coverage**: for each scene whose visual note mentions a character slug, assert the scene's final `referenceImageIds` contains that character's `sheet.imageId`
 
 ### Human Review Checklist
 

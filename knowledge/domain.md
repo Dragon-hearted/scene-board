@@ -49,32 +49,19 @@ SceneBoard takes a video brief of any format and produces a professional storybo
 
 Visual consistency across scenes is enforced at four cumulative levels. The highest-priority tier (0) is only active when a Character Sheet exists — i.e., when the script had ≥2 protagonists and the user approved sheet generation at Stage 4.5.
 
-0. **Character View Reference** (per-character pixel anchor, Stage 4.5 output): When a scene features a named character from the Character Sheet, the character's angle-matched view (`body-front`, `body-back`, `face-front`, `face-back`, `face-left`, or `face-right`) is injected as reference #1 for that scene. One view per character; up to 3 characters can fill the 3-reference cap. This is the highest-priority consistency signal — character identity is pixel-locked across every shot they appear in, regardless of camera angle.
+0. **Character Reference Sheet** (per-character pixel anchor, Stage 4.5 output): When a scene features a named character from the Character Sheet, the character's single composite sheet image (showing all 6 poses on a clean white studio backdrop) is injected as a reference for that scene. One image per character; up to 3 characters fill the 3-reference cap. NanoBanana Pro can pull identity from whichever angle in the composite matches the scene's camera — the pipeline does not need to pre-select a view. This is the highest-priority consistency signal — character identity is pixel-locked across every shot they appear in.
 
 1. **Style Anchor Preamble** (baseline): A 200-400 char condensed visual identity included verbatim at the start of every NanoBanana Pro prompt. Handles: color palette, photographic style, lighting mood, camera conventions.
 
 2. **Character Consistency Protocol** (subject-level, text): A locked physical description of each character (sourced from `Character.lockedDescription` in the registry when the Character Sheet exists, or defined inline in the Style Anchor otherwise) repeated verbatim in every scene prompt featuring that character. Handles: skin tone, hair, build, expression range, clothing continuity, distinguishing features. Complements tier 0 at the prose level.
 
-3. **Reference Image Feedback Loops** (pixel-level, environment): Generated images from earlier scenes are passed as `referenceImageIds` to subsequent scenes via the batch generator's `dependsOn` mechanism. Scene 1 establishes the visual baseline; Scenes 2-N reference Scene 1's output. **Dropped from a scene's reference list when character views fill all 3 slots** — the conscious trade-off is face fidelity over environment continuity in multi-protagonist scenes.
+3. **Reference Image Feedback Loops** (pixel-level, environment): Generated images from earlier scenes are passed as `referenceImageIds` to subsequent scenes via the batch generator's `dependsOn` mechanism. Scene 1 establishes the visual baseline; Scenes 2-N reference Scene 1's output. **Dropped from a scene's reference list when character sheets fill all 3 slots** — the conscious trade-off is face fidelity over environment continuity in multi-protagonist scenes.
 
 The four levels are cumulative where they don't conflict. Conflict handling:
-- Character views (tier 0) always take priority when present; the Scene-1 anchor (tier 3) is dropped to stay within the 3-reference cap.
+- Character sheets (tier 0) always take priority when present; the Scene-1 anchor (tier 3) is dropped to stay within the 3-reference cap.
 - When the Character Sheet exists, the Style Anchor (tier 1) must NOT redefine physical appearance for sheet characters — it only constrains stylistic treatment (lighting, palette, mood).
 
-#### Per-Scene View Selection
-
-When the skill sets `ScenePrompt.cameraAngle` (during Stage 5B/6 prompt composition), the batch generator's `pickViewForScene()` helper picks one view per character:
-
-| `cameraAngle` | View picked |
-|---|---|
-| `front` (default) | `body-front` |
-| `back` | `body-back` |
-| `left` | `face-left` |
-| `right` | `face-right` |
-| `close-up` | `face-front` |
-| `wide` | `body-front` |
-
-If the preferred view is missing (generation failed), fall back through: `body-front` → `face-front` → `body-back` → `face-left` → `face-right` → `face-back` → first available. The primary goal is always *some* pixel reference of the character.
+Per-scene reference injection: `resolveReferenceImageIds(scene, registry)` maps each character slug in `scene.characters` to the character's `sheet.imageId` and places up to 3 of them first in the reference list; remaining slots (if any) carry over from `scene.referenceImageIds` (e.g., Scene-1 environment anchor). The composite sheet shows all six angles, so NanoBanana Pro will lean on whichever angle matches the scene's camera without the pipeline needing to pre-select a view.
 
 ## Edge Cases & Gotchas
 
@@ -191,7 +178,7 @@ SceneBoard must autonomously determine the best marketing/engagement framework b
 - **The brief is flexible, the output is not**: Accept any input format, but the output must always be a polished, professional storyboard document. No excuses for rough output regardless of input quality.
 - **Ask, don't assume**: For anything that could go multiple ways (shot duration, voice script needed, on-screen text needed, platform, aspect ratio), always ask the user rather than making assumptions.
 - **Style consistency is enforced through a Style Anchor document generated once and carried into every scene prompt. Without this, scenes drift into visually unrelated images — the #2 failure mode after prompt/visual mismatch.**
-- **Character consistency in multi-protagonist scripts is enforced through the optional Stage 4.5 Character Sheet (6 views per character: 2 full-body + 4 face angles). When ≥2 protagonists are detected, the skill offers to generate sheets; if accepted, each scene prompt injects the angle-matched view of each character present as a reference image, pixel-locking identity across all shots. Text-only character descriptions drift when ≥2 characters share a scene — character views prevent that drift at the cost of the Scene-1 environment anchor in character-dense scenes.**
+- **Character consistency in multi-protagonist scripts is enforced through the optional Stage 4.5 Character Sheet (one composite reference image per character on a clean white studio backdrop, showing all 6 poses — large face close-up, left/right face profiles, back-of-head, full-body front, full-body back — in a single wide image). When ≥2 protagonists are detected, the skill offers to generate sheets; if accepted, each scene prompt injects that character's single composite sheet as a reference image, and NanoBanana Pro pulls identity from whichever angle in the composite matches the scene's camera. Text-only character descriptions drift when ≥2 characters share a scene — composite sheets prevent that drift at the cost of the Scene-1 environment anchor in character-dense scenes.**
 
 ## Client System
 
@@ -208,13 +195,8 @@ systems/scene-board/clients/
       visual-direction.md   # Visual identity & art direction
     characters/           # Reusable Stage 4.5 character sheets (per-character folder)
       {character-slug}/
-        character.md        # frontmatter + locked description + 6 image IDs
-        body-front.png      # cached views (gallery is source of truth)
-        body-back.png
-        face-front.png
-        face-back.png
-        face-left.png
-        face-right.png
+        character.md        # frontmatter + locked description + sheet image ID
+        sheet.png           # cached composite reference sheet (gallery is source of truth)
     storyboards/          # Generated storyboard outputs
       {project-name}-v{N}.md   # Markdown storyboard
       {project-name}-v{N}.pdf  # PDF storyboard

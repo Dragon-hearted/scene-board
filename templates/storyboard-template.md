@@ -35,27 +35,17 @@ output_dir: "systems/scene-board/clients/{{client-slug}}/storyboards"
 
 ### {{character-name}}
 
-**Face views**
+![{{character-slug}}-character-sheet]({{sheet-url}})
 
-| Front | Left profile | Right profile | Back |
-|---|---|---|---|
-| ![{{character-slug}}-face-front]({{face-front-url}}) | ![{{character-slug}}-face-left]({{face-left-url}}) | ![{{character-slug}}-face-right]({{face-right-url}}) | ![{{character-slug}}-face-back]({{face-back-url}}) |
-
-**Full body views**
-
-| Front | Back |
-|---|---|
-| ![{{character-slug}}-body-front]({{body-front-url}}) | ![{{character-slug}}-body-back]({{body-back-url}}) |
+**Image ID**: `{{sheet-image-id}}`
 
 **Locked Description**: {{locked-description}}
 
 **Appears in Scenes**: {{scene-list}}
 
-**Image IDs**: face-front `{{face-front-id}}` · face-left `{{face-left-id}}` · face-right `{{face-right-id}}` · face-back `{{face-back-id}}` · body-front `{{body-front-id}}` · body-back `{{body-back-id}}`
-
 {{END FOR EACH}}
 
-> If any view failed to generate, render the cell as `_failed — retry at Stage 4.5 [M]_`. This section is omitted entirely when fewer than 2 protagonists are detected or the user declined the character sheet offer.
+> If a character's sheet failed to generate, the image line renders `_failed — retry at Stage 4.5 [M]_` and the Image ID becomes `pending`. This section is omitted entirely when fewer than 2 protagonists are detected or the user declined the character sheet offer.
 
 ---
 
