@@ -45,20 +45,11 @@ pdf_options:
 
 ### {{character-name}}
 
-<div class="character-sheet-grid">
-
-| Face Front | Face Left | Face Right | Face Back |
-|-----------|-----------|-----------|-----------|
-| ![face-front]({{face-front-url}}) | ![face-left]({{face-left-url}}) | ![face-right]({{face-right-url}}) | ![face-back]({{face-back-url}}) |
-
-| Body Front | Body Back |
-|-----------|-----------|
-| ![body-front]({{body-front-url}}) | ![body-back]({{body-back-url}}) |
-
-</div>
+![{{character-slug}}]({{sheet-url}})
 
 | Element | Content |
 |---------|---------|
+| **Image ID** | `{{sheet-image-id}}` |
 | **Locked Description** | {{locked-description}} |
 | **Appears in Scenes** | {{scene-list}} |
 

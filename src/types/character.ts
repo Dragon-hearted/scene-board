@@ -1,29 +1,12 @@
 /**
  * Character sheet types for SceneBoard's multi-protagonist consistency pipeline.
  *
- * A character sheet is a 6-view reference set per character (2 full-body +
- * 4 face angles) used to keep each character visually identical across all
- * scenes they appear in. Views are chained so that non-anchor views reference
- * the anchor, keeping identity locked even when chained views are rendered
- * by the cheaper Flash model.
+ * A character sheet is a single composite reference image per character that
+ * shows the character from six angles (large face close-up, left profile,
+ * right profile, back-of-head, full-body front, full-body back) on a clean
+ * white studio backdrop. One image carries every angle NanoBanana Pro needs
+ * to lock identity across all scenes the character appears in.
  */
-
-export type CharacterViewKey =
-  | "body-front"
-  | "body-back"
-  | "face-front"
-  | "face-back"
-  | "face-left"
-  | "face-right";
-
-export const CHARACTER_VIEW_KEYS: readonly CharacterViewKey[] = [
-  "body-front",
-  "body-back",
-  "face-front",
-  "face-back",
-  "face-left",
-  "face-right",
-] as const;
 
 export interface CharacterView {
   imageId: string;
@@ -32,14 +15,12 @@ export interface CharacterView {
   generatedAt: string;
 }
 
-export type CharacterPortraitSet = Partial<Record<CharacterViewKey, CharacterView>>;
-
 export interface Character {
   slug: string;
   name: string;
   lockedDescription: string;
-  portraits: CharacterPortraitSet;
-  anchorView: CharacterViewKey;
+  /** Composite 6-panel reference sheet; undefined when generation failed. */
+  sheet?: CharacterView;
   sourceRefImageIds?: string[];
   tags?: string[];
   appearsInScenes: string[];

@@ -5,11 +5,7 @@
  */
 
 import type { GenerationResult } from "./image-client";
-import type {
-  Character,
-  CharacterRegistry,
-  CharacterViewKey,
-} from "./types/character";
+import type { Character, CharacterRegistry } from "./types/character";
 
 export interface SceneImageMap {
   [sceneId: string]: {
@@ -131,60 +127,28 @@ export function assembleImages(
 
 const FAILED_CELL = "_failed — retry at Stage 4.5 [M]_";
 
-function viewCell(
-  character: Character,
-  viewKey: CharacterViewKey,
-  altPrefix: string,
-): string {
-  const view = character.portraits[viewKey];
-  if (!view) return FAILED_CELL;
-  return `![${altPrefix}-${viewKey}](${view.imageUrl})`;
-}
-
-function viewIdLabel(
-  character: Character,
-  viewKey: CharacterViewKey,
-): string {
-  const view = character.portraits[viewKey];
-  return `${viewKey} \`${view?.imageId ?? "missing"}\``;
-}
-
 function renderCharacter(character: Character): string {
   const lines: string[] = [];
   lines.push(`### ${character.name}`);
   lines.push("");
-  lines.push("**Face views**");
-  lines.push("");
-  lines.push("| Front | Left profile | Right profile | Back |");
-  lines.push("|---|---|---|---|");
-  lines.push(
-    `| ${viewCell(character, "face-front", character.slug)} | ${viewCell(character, "face-left", character.slug)} | ${viewCell(character, "face-right", character.slug)} | ${viewCell(character, "face-back", character.slug)} |`,
-  );
-  lines.push("");
-  lines.push("**Full body views**");
-  lines.push("");
-  lines.push("| Front | Back |");
-  lines.push("|---|---|");
-  lines.push(
-    `| ${viewCell(character, "body-front", character.slug)} | ${viewCell(character, "body-back", character.slug)} |`,
-  );
-  lines.push("");
+
+  if (character.sheet) {
+    lines.push(
+      `![${character.slug}-character-sheet](${character.sheet.imageUrl})`,
+    );
+    lines.push("");
+    lines.push(`**Image ID**: \`${character.sheet.imageId}\``);
+  } else {
+    lines.push(FAILED_CELL);
+    lines.push("");
+    lines.push("**Image ID**: `failed`");
+  }
+
   lines.push(`**Locked Description**: ${character.lockedDescription}`);
-  lines.push("");
   const scenes = character.appearsInScenes.length
     ? character.appearsInScenes.join(", ")
     : "_pending scene assignment_";
   lines.push(`**Appears in Scenes**: ${scenes}`);
-  lines.push("");
-  const idParts = [
-    viewIdLabel(character, "face-front"),
-    viewIdLabel(character, "face-left"),
-    viewIdLabel(character, "face-right"),
-    viewIdLabel(character, "face-back"),
-    viewIdLabel(character, "body-front"),
-    viewIdLabel(character, "body-back"),
-  ];
-  lines.push(`**Image IDs**: ${idParts.join(" · ")}`);
   return lines.join("\n");
 }
 
