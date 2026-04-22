@@ -193,3 +193,59 @@ a {
   color: #0066cc;
   text-decoration: none;
 }
+
+/* Images */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 12px auto;
+  page-break-inside: avoid;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+/* Table thumbnail images (scene summary) */
+table img {
+  max-width: 120px;
+  max-height: 210px;
+  margin: 0;
+  box-shadow: none;
+}
+
+/* Full-size scene image after h3 headings */
+h3 + p + img,
+h3 + img {
+  max-width: 65%;
+  margin: 16px auto;
+}
+
+/* Character Sheet grid — Stage 4.5 output */
+.character-sheet-grid {
+  display: block;
+  margin: 12px 0 16px;
+  page-break-inside: avoid;
+}
+
+.character-sheet-grid table {
+  margin: 6px 0;
+}
+
+.character-sheet-grid table img {
+  max-width: 100%;
+  max-height: 160px;
+  margin: 0 auto;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+
+.character-sheet-grid td,
+.character-sheet-grid th {
+  text-align: center;
+  vertical-align: middle;
+  padding: 6px 8px;
+}
+
+.character-sheet-grid th {
+  font-size: 8pt;
+}

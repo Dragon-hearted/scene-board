@@ -31,6 +31,7 @@ SceneBoard transforms video briefs of any format into professional storyboards t
 - [History](history.md) — Build, fix, and diagnosis history
 
 ## Cross-References
-- Skills: ad-creative, copywriting, social-content, marketing-psychology, paid-ads, sales-enablement, content-strategy
-- External guide: `_bmad/wds/workflows/4-ux-design/data/guides/NANO-BANANA-PROMPT-GUIDE.md`
-- External guide: `_bmad/wds/workflows/4-ux-design/data/guides/KLING-VIDEO-PROMPT-GUIDE.md`
+- Skills: ad-creative, copywriting, social-content, marketing-psychology, paid-ads, sales-enablement, content-strategy, prompt-writer
+- NanoBanana Pro prompt guide: `systems/prompt-writer/knowledge/models/image/nanobanana-pro.md` (centralized in PromptWriter)
+- Kling video prompt guide: `systems/prompt-writer/knowledge/models/video/kling.md` (centralized in PromptWriter)
+- Visual direction: `systems/prompt-writer/knowledge/visual-direction/` (shot types, composition, lighting)
