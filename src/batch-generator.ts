@@ -12,19 +12,7 @@ import {
   type GenerationResult,
   type BatchRequest,
 } from "./image-client";
-import type {
-  Character,
-  CharacterRegistry,
-  CharacterViewKey,
-} from "./types/character";
-
-export type SceneCameraAngle =
-  | "front"
-  | "back"
-  | "left"
-  | "right"
-  | "close-up"
-  | "wide";
+import type { Character, CharacterRegistry } from "./types/character";
 
 export interface ScenePrompt {
   sceneId: string;
@@ -37,7 +25,6 @@ export interface ScenePrompt {
   referenceImageIds?: string[];
   dependsOn?: string[];
   characters?: string[];
-  cameraAngle?: SceneCameraAngle;
 }
 
 export interface BatchGenerationResult {
@@ -49,65 +36,29 @@ export interface BatchGenerationResult {
 
 const HARD_CAP = 3;
 
-const ANGLE_TO_VIEW: Record<SceneCameraAngle, CharacterViewKey> = {
-  front: "body-front",
-  back: "body-back",
-  left: "face-left",
-  right: "face-right",
-  "close-up": "face-front",
-  wide: "body-front",
-};
-
-const FALLBACK_ORDER: CharacterViewKey[] = [
-  "body-front",
-  "face-front",
-  "body-back",
-  "face-left",
-  "face-right",
-  "face-back",
-];
-
-/**
- * Pick the best character-sheet view for a given scene camera angle.
- * Falls back through the standard ordering when the angle-matched view
- * is missing (e.g. generation failed).
- */
-export function pickViewForScene(
-  character: Character,
-  angle?: SceneCameraAngle,
-): string | undefined {
-  const preferred = angle ? ANGLE_TO_VIEW[angle] : "body-front";
-  const order = [preferred, ...FALLBACK_ORDER.filter((k) => k !== preferred)];
-  for (const key of order) {
-    const view = character.portraits[key];
-    if (view?.imageId) return view.imageId;
-  }
-  return undefined;
-}
-
 /**
  * Build the final `referenceImageIds` list for a scene, combining
- * character view references (tier 0) with any explicit references
- * the scene already declared (tier 3). Character views always win;
+ * character-sheet references (tier 0) with any explicit references
+ * the scene already declared (tier 3). Character sheets always win;
  * explicit references fill remaining slots up to the 3-ref cap.
  */
 export function resolveReferenceImageIds(
   scene: ScenePrompt,
   registry: CharacterRegistry,
 ): string[] {
-  const viewIds = (scene.characters ?? [])
+  const sheetIds = (scene.characters ?? [])
     .map((slug) => registry.get(slug))
     .filter((c): c is Character => Boolean(c))
-    .map((c) => pickViewForScene(c, scene.cameraAngle))
+    .map((c) => c.sheet?.imageId)
     .filter((id): id is string => Boolean(id))
     .slice(0, HARD_CAP);
 
-  const remaining = HARD_CAP - viewIds.length;
+  const remaining = HARD_CAP - sheetIds.length;
   const explicit = (scene.referenceImageIds ?? [])
-    .filter((id) => !viewIds.includes(id))
+    .filter((id) => !sheetIds.includes(id))
     .slice(0, remaining);
 
-  return [...viewIds, ...explicit];
+  return [...sheetIds, ...explicit];
 }
 
 function toGenerationRequest(
