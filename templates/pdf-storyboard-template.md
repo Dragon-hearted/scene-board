@@ -39,6 +39,33 @@ pdf_options:
 
 ---
 
+## Character Sheet
+
+{{FOR EACH CHARACTER:}}
+
+### {{character-name}}
+
+<div class="character-sheet-grid">
+
+| Face Front | Face Left | Face Right | Face Back |
+|-----------|-----------|-----------|-----------|
+| ![face-front]({{face-front-url}}) | ![face-left]({{face-left-url}}) | ![face-right]({{face-right-url}}) | ![face-back]({{face-back-url}}) |
+
+| Body Front | Body Back |
+|-----------|-----------|
+| ![body-front]({{body-front-url}}) | ![body-back]({{body-back-url}}) |
+
+</div>
+
+| Element | Content |
+|---------|---------|
+| **Locked Description** | {{locked-description}} |
+| **Appears in Scenes** | {{scene-list}} |
+
+{{END FOR EACH}}
+
+---
+
 ## Scene-by-Scene Breakdown
 
 | Seq | Scene Name | Visual Action & Composition | Audience Sees | Audio / Text |
