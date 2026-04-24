@@ -21,6 +21,7 @@ import type {
   CharacterRegistry,
   CharacterView,
 } from "./types/character";
+import { brandContextPrompt } from "../vendor/design-system/adapters/ai-brand";
 
 const SHEET_MODEL = "gemini-3-pro-image-preview" as const;
 const SHEET_ASPECT = "16:9" as const;
@@ -48,6 +49,7 @@ export interface CharacterPortraitInput {
   };
   styleAnchor: string;
   brandContext?: string;
+  designContext?: string;
 }
 
 export interface CharacterSheetResult {
@@ -59,10 +61,18 @@ export interface CharacterSheetResult {
 }
 
 function buildPrompt(input: CharacterPortraitInput): string {
-  const { character, styleAnchor, brandContext } = input;
+  const {
+    character,
+    styleAnchor,
+    brandContext,
+    designContext = brandContextPrompt({ surface: "character-sheet" }),
+  } = input;
+  const fullBrandContext = brandContext
+    ? `${brandContext}\n\n${designContext}`
+    : designContext;
   const parts = [
     styleAnchor.trim(),
-    brandContext?.trim(),
+    fullBrandContext.trim(),
     "",
     `Character reference sheet — ${character.name}. ${character.lockedDescription}`,
     "",
