@@ -121,17 +121,27 @@ scene-board/
 │   ├── domain.md
 │   ├── history.md
 │   ├── index.md
+│   ├── nanobanana-pro-prompt-guide.md
 │   └── scope.md
 ├── package.json
 ├── scripts
 │   └── generate-pdf.sh
 ├── src
-│   └── index.ts
+│   ├── batch-generator.ts
+│   ├── character-sheet-generator.ts
+│   ├── image-client.ts
+│   ├── index.ts
+│   ├── storyboard-assembler.ts
+│   └── types
+│       └── character.ts
 ├── templates
 │   ├── pdf-storyboard-template.md
 │   ├── pdf-styles.css
 │   └── storyboard-template.md
-└── tsconfig.json
+├── tsconfig.json
+└── vendor
+    └── design-system
+        └── tokens.css
 ```
 
 ---
