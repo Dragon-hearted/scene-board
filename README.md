@@ -107,10 +107,6 @@ bun run systems/scene-board/src/index.ts
 scene-board/
 ├── README.md
 ├── biome.json
-├── clients
-│   ├── README.md
-│   └── vindof
-│       └── brand.md
 ├── images
 │   ├── hero.svg
 │   └── pipeline.svg
@@ -121,12 +117,19 @@ scene-board/
 │   ├── domain.md
 │   ├── history.md
 │   ├── index.md
+│   ├── nanobanana-pro-prompt-guide.md
 │   └── scope.md
 ├── package.json
 ├── scripts
 │   └── generate-pdf.sh
 ├── src
-│   └── index.ts
+│   ├── batch-generator.ts
+│   ├── character-sheet-generator.ts
+│   ├── image-client.ts
+│   ├── index.ts
+│   ├── storyboard-assembler.ts
+│   └── types
+│       └── character.ts
 ├── templates
 │   ├── pdf-storyboard-template.md
 │   ├── pdf-styles.css
