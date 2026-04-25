@@ -66,3 +66,6 @@ coverage/
 .cache/
 .eslintcache
 .parcel-cache/
+
+# Client material — never commit (backed up at ~/scene-board-clients-backup-*)
+clients/
