@@ -134,7 +134,10 @@ scene-board/
 │   ├── pdf-storyboard-template.md
 │   ├── pdf-styles.css
 │   └── storyboard-template.md
-└── tsconfig.json
+├── tsconfig.json
+└── vendor
+    └── design-system
+        └── tokens.css
 ```
 
 ---
