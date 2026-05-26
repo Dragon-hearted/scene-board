@@ -41,10 +41,10 @@ These criteria are binary pass/fail and must all be satisfied before a storyboar
 
 - [ ] When ≥2 protagonists are detected in the approved scene breakdown, a Character Sheet section exists in the final storyboard — unless the user explicitly declined at the offer prompt, and the decline is recorded in the pipeline log
 - [ ] Every character in the Character Sheet has a non-empty `lockedDescription` and a generated composite `sheet.imageId` (or an explicit `_failed_` marker in the storyboard cell if generation errored)
-- [ ] The composite sheet is generated with NanoBanana Pro (`gemini-3-pro-image-preview`), aspect ratio `16:9`, image size `2K`
+- [ ] The composite sheet is generated with GPT Image 2 (`gpt-image-2`, fallback `gpt-image-1.5`), landscape orientation, `1536x1024` pixels, quality `high`
 - [ ] Every scene that features a named character from the Character Sheet includes that character's composite `sheet.imageId` in its resolved `referenceImageIds`, subject to the 3-ref cap, with characters ordered by script appearance
 - [ ] When >3 characters appear in one scene, the resolved reference list contains the sheet IDs for the first 3 characters (no Scene-1 anchor, no explicit refs)
-- [ ] On approval at the Stage 4.5 gate, `sheet.png` and `character.md` frontmatter (with the sheet image ID) are cached under `systems/scene-board/clients/{client}/characters/{slug}/` for future reuse
+- [ ] On approval at the Stage 4.5 gate, `sheet.png` and `character.md` frontmatter (with the sheet image ID) are cached under `client/{client}/characters/{slug}/` for future reuse
 
 ### NanoBanana Pro Prompts
 
