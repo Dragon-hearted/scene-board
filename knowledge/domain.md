@@ -187,7 +187,7 @@ SceneBoard supports per-client brand knowledge that is loaded automatically when
 ### Directory Structure
 
 ```
-systems/scene-board/clients/
+client/
   {client-slug}/
     brand.md              # Compiled brand profile (quick-reference)
     knowledge/            # Detailed brand knowledge files
@@ -229,7 +229,7 @@ The PDF follows a professional tabular layout:
 
 ### Output Location
 
-- **With client context**: `systems/scene-board/clients/{client}/storyboards/{project-name}-v{N}.pdf`
+- **With client context**: `client/{client}/storyboards/{project-name}-v{N}.pdf`
 - **Without client context**: User-specified location
 
 Both markdown and PDF versions are saved. Previous versions are preserved (not overwritten) when iterating.

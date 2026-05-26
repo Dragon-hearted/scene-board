@@ -7,7 +7,7 @@ duration: "{{total-duration}}"
 scenes: "{{scene-count}}"
 date: "{{date}}"
 status: "draft"
-output_dir: "systems/scene-board/clients/{{client-slug}}/storyboards"
+output_dir: "client/{{client-slug}}/storyboards"
 ---
 
 # {{project-name}} — Storyboard

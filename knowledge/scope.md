@@ -17,7 +17,7 @@ SceneBoard is a CLI-driven storyboard creation system that transforms video brie
 - Reference image guidance alongside prompts (what to look for, what to generate)
 - CLI interface with interactive approval gates
 - Knowledge gathering phase — collect all context needed before generation begins
-- **Client knowledge management** — per-client brand profiles stored at `systems/scene-board/clients/{client}/` with brand positioning, visual direction, and voice guidelines that are auto-loaded when generating storyboards
+- **Client knowledge management** — per-client brand profiles stored at `client/{client}/` with brand positioning, visual direction, and voice guidelines that are auto-loaded when generating storyboards
 - **PDF storyboard generation** — professional tabular PDF output alongside markdown, with project specs header, scene-by-scene table, production notes, and B-roll sections
 
 ## Out of Scope
