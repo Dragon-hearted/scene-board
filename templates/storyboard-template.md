@@ -1,142 +1,149 @@
 ---
 project: "{{project-name}}"
 client: "{{client-name}}"
+brand_category: "{{brand-category}}"
 platform: "{{platform}}"
 aspect_ratio: "{{aspect-ratio}}"
 duration: "{{total-duration}}"
-scenes: "{{scene-count}}"
+sheets: "{{sheet-count}}"
+panels: "{{panel-count}}"
 date: "{{date}}"
 status: "draft"
-output_dir: "client/{{client-slug}}/storyboards"
+image_provider: "higgsfield (gpt_image_2) — image-engine fallback"
+output_dir: "client/{{client-slug}}/storyboards/{{project-slug}}"
 ---
 
-# {{project-name}} — Storyboard
+# {{project-name}}
 
-## Project Overview
-- **Client**: {{client-name}}
-- **Platform**: {{platform}}
-- **Aspect Ratio**: {{aspect-ratio}}
-- **Total Duration**: {{total-duration}}
-- **Total Scenes**: {{scene-count}}
-- **Video Type**: {{video-type}}
-- **Goal**: {{video-goal}}
+{{subtitle}}
+<!-- Example: "15s Product Ad — Composite Storyboard Sheet + Cinematic Video Prompt" -->
 
 ---
 
-## Style Anchor
+## PROJECT SPECIFICATIONS
+
+| | |
+|---|---|
+| **Duration** | {{total-duration}} |
+| **Format** | {{aspect-ratio}} ({{landscape-or-vertical}}) |
+| **Sheets** | {{sheet-count}} @ ≤15s each |
+| **Panels** | {{panel-count}} |
+| **Style** | {{video-style}} |
+| **Product** | {{product-name}} |
+| **Model/Talent** | {{model-description}} |
+| **Setting** | {{setting-description}} |
+| **Audio** | {{audio-description}} |
+| **Image Provider** | Higgsfield (GPT Image 2) — ImageEngine fallback |
+
+---
+
+## STYLE ANCHOR
 
 {{style-anchor-content}}
 
 ---
 
-## Character Sheet
+## REFERENCE SHEETS
 
-{{FOR EACH CHARACTER:}}
+> Omit this entire section if Stage 4.5 was skipped (no character/product reference sheets generated).
 
-### {{character-name}}
+{{FOR EACH REFERENCE SHEET:}}
 
-![{{character-slug}}-character-sheet]({{sheet-url}})
+### {{subject-name}} — {{character-or-product}} (4-view)
 
-**Image ID**: `{{sheet-image-id}}`
+![{{subject-slug}}-reference-sheet]({{sheet-path-or-url}})
 
-**Locked Description**: {{locked-description}}
-
-**Appears in Scenes**: {{scene-list}}
+| Element | Content |
+|---------|---------|
+| **Type** | {{character \| product}} |
+| **Locked Description** | {{locked-description}} |
+| **Garments** (clothing only) | {{selected-garments-or-N/A}} |
+| **Appears in Panels** | {{panel-list}} |
+| **Provider / Model** | {{higgsfield \| image-engine}} / gpt_image_2 |
 
 {{END FOR EACH}}
 
-> If a character's sheet failed to generate, the image line renders `_failed — retry at Stage 4.5 [M]_` and the Image ID becomes `pending`. This section is omitted entirely when fewer than 2 protagonists are detected or the user declined the character sheet offer.
+> If a reference sheet failed to generate, the image line renders `_failed — retry at Stage 4.5 [M]_`.
 
 ---
 
-## Full Script
+## FULL SCRIPT
 
 {{full-script}}
 
 ---
 
-## Voice Script
+## VOICE SCRIPT
 
 {{voice-script-or-N/A}}
 
 ---
 
-## Scene Breakdown
+## STORYBOARD SHEET(S)
 
-{{FOR EACH SCENE:}}
+{{FOR EACH ≤15s BLOCK:}}
 
-### Scene {{N}} — {{scene-title}}
+### Sheet {{S}} — {{block-label, e.g. 00:00–00:15}}
 
-**Timestamp**: {{start-time}} → {{end-time}} ({{duration}})
+![storyboard-sheet-{{S}}]({{sheet-path-or-url}})
 
-#### Script
-> {{script-line}}
-
-#### Voice Script
-> {{voice-script-line-or-N/A}}
-
-#### On-Screen Text
-> {{on-screen-text-or-N/A}}
-
-#### Visual Direction
-{{visual-direction-prose}}
-
-#### NanoBanana Pro Prompt
-
-**Render Method**: {{nanobanana-pro | remotion}}
-**Creative Mode**: {{Faithful | Expressive | Vision | Image Asset}}
-
-**System Instruction** ({{char-count}} chars):
+**Phase 1 Prompt** (the exact continuous A–H prompt used to generate this sheet):
 ```
-{{system-instruction}}
+{{phase-1-prompt}}
 ```
 
-**Prompt** ({{char-count}} chars):
-```
-{{prompt-text}}
-```
-
-> Remember: All NanoBanana Pro prompts must end with "No text in image." to prevent garbled text artifacts.
-
-**Reference Images**:
-1. {{reference-description-1}}
-2. {{reference-description-2}}
-3. {{reference-description-3}}
-
-#### Generated Image
-**Image ID**: {{image-id-or-pending}}
-**Image URL**: {{image-engine-gallery-url-or-pending}}
-**Status**: {{generated | pending | failed}}
-**Model**: {{model-used}}
-**Tokens Used**: {{total-tokens}}
-
-#### Kling Video Prompt
-
-**Mode**: image-to-video
-**Duration**: {{5s | 10s}}
-**Source**: Scene {{N}} NanoBanana Pro output
-
-**Motion & Animation Direction**:
-```
-{{motion-direction — how the subject moves, gestures, physics, expressions changing, secondary motion like wind/reflections/background}}
-```
-
-**Camera Motion**:
-```
-{{camera-motion — static, slow pan, tracking, dolly, handheld drift, push in, orbit, etc.}}
-```
-
-**Negative Prompt**:
-```
-{{negative-terms — e.g. morphing, sliding feet, cartoonish, 3D render, floating limbs, jittery motion, text morphing}}
-```
-
-> Note: Kling prompts describe motion and camera only. The visual scene is inherited from the NanoBanana Pro source image. Scenes rendered via Remotion (text cards) do not get Kling prompts.
-
----
+| Panel | Timecode | Shot Type | Caption |
+|-------|----------|-----------|---------|
+{{FOR EACH PANEL IN SHEET:}}
+| {{N}} | {{start}}–{{end}} | {{shot-type}} | {{caption}} |
+{{END FOR EACH}}
 
 {{END FOR EACH}}
 
-## Production Notes
+---
 
-{{any-additional-notes}}
+## PHASE 2 — CINEMATIC VIDEO PROMPT
+
+```
+{{production-header — sheet reference, character/product consistency mandate, style block, focus block}}
+
+SHOT 1 — {{SCENE NAME}}  [{{x}}s – {{y}}s]
+{{shot type + camera, scene direction, dialogue, SFX, camera movement}}
+
+SHOT 2 — {{SCENE NAME}}  [{{y}}s – {{z}}s]
+{{...}}
+
+{{... one shot per panel ...}}
+
+Audio: Diegetic sound only — natural ambience, environmental foley, and subject-driven sound.
+```
+
+*Companion note: {{pacing choices, shots to watch, optional audio/music pairing}}*
+
+---
+
+## PRODUCTION NOTES
+
+| Category | Details |
+|----------|---------|
+| **Color Palette** | {{color-palette}} |
+| **Lighting** | {{lighting-description}} |
+| **Camera** | {{camera-style}} |
+| **Text / Type** | {{Sheet text rendered by GPT Image 2; brand wordmarks/end cards via Remotion}} |
+| **Music** | {{music-description}} |
+
+---
+
+## B-ROLL SHOTS (optional)
+
+> Only include if B-roll was identified during the pipeline.
+
+| # | B-Roll Name | Use During | Audio / Text |
+|---|------------|------------|--------------|
+{{FOR EACH B-ROLL:}}
+| {{N}} | **{{b-roll-name}}** | {{use-during-panel-or-block}} | {{b-roll-audio}} |
+{{END FOR EACH}}
+
+---
+
+{{product-name}} | {{tagline}} | {{website}}

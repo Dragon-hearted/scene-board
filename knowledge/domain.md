@@ -1,320 +1,232 @@
 # SceneBoard — Domain Knowledge
 
 ## Process Overview
-SceneBoard takes a video brief of any format and produces a professional storyboard through a dynamic, approval-gated workflow. The system intelligently detects what's provided in the brief and only generates what's missing.
+SceneBoard takes a video brief of any format and produces a professional **two-phase storyboard deliverable** through a dynamic, approval-gated workflow. The system intelligently detects what's provided in the brief and only generates what's missing.
+
+The defining shift from the legacy design: SceneBoard no longer renders **"1 scene = 1 individual image."** It produces a **single composite multi-panel storyboard SHEET image** per ≤15s block — numbered panels in a grid, each with a timecode and a one-line shot caption baked into the one render — followed by a **Phase 2 cinematic video prompt**. The methodology is ported from the storyboard-prompt-builder (`knowledge/storyboard-prompt-builder.md`).
 
 ### Steps
 1. **Brief Intake** — Accept the brief in any format (Instagram link with changes, detailed document, raw idea, script, voice script, etc.). Parse and identify which storyboard components are already provided vs. need generation.
-2. **Context Gathering** — Collect all additional information needed: brand context, target audience, platform, goals, whether voice script and on-screen text are both needed, etc.
+2. **Context Gathering** — Collect all additional information needed: brand context (including `brand_category`), target audience, platform, goals, whether voice script and on-screen text are both needed, etc.
 3. **Dynamic Generation & Approval Loop** — For each missing component, generate multiple options using the best available marketing/sales/social/ads skill frameworks, present for approval, and lock in once approved. Components include: script, voice script, scene breakdown, visual direction, etc.
-4. **Scene Breakdown** — Break the approved script into individual shots. Each shot = one scene = one image to generate. The number of images equals the number of shots.
-5. **Visual Direction** — For each scene, determine the best visuals that reflect the story and are understandable by the audience.
-6. **NanoBanana Pro Prompt Generation** — Generate optimized NanoBanana Pro prompts for each scene to produce the required visuals.
-7. **Final Storyboard Assembly** — Curate the complete storyboard document with all approved components, prompts, and reference guidance.
+4. **Scene Breakdown** — Break the approved script into beats/panels. Each panel is a numbered cell on the composite sheet with its own timecode range and shot caption.
+5. **Visual Direction** — Lock a Style Anchor, then determine the best visuals per panel that reflect the story and read clearly to the audience.
+6. **Reference Sheet stage (Stage 4.5, optional)** — Generate **4-view reference sheets** for **character and/or product** subjects on a neutral grey background (Higgsfield GPT Image 2 → ImageEngine fallback). These are fed as reference images into the composite sheet for identity lock.
+7. **Phase 1 — Composite Storyboard Sheet** — Assemble a single continuous GPT Image 2 prompt (sections A–H) and generate one composite multi-panel sheet image per ≤15s block via the Higgsfield CLI (ImageEngine fallback), passing all approved reference sheets as reference images.
+8. **Phase 2 — Cinematic Video Prompt** — After sheet approval, emit a per-shot timed cinematic video prompt (timecode, camera, dialogue, SFX, fixed closing Audio line) ready for an AI video tool.
+9. **Final Storyboard Assembly** — Curate the complete storyboard markdown + PDF embedding the sheet image(s), the generating Phase 1 prompt, the panel/timecode table, and the Phase 2 video prompt.
 
 ## Domain Concepts
-- **Brief**: The input to SceneBoard. Can be anything — an Instagram link with proposed changes, a detailed document with everything specified, a raw idea, a script, a voice script, or any combination. There is no fixed format.
-- **Shot/Scene**: A single continuous visual in the video. Each shot change marks a new scene. One shot = one image to generate via NanoBanana Pro.
-- **NanoBanana Pro**: Image generation via WisGate API through ImageEngine gateway. Key constraints: 8192 char prompt limit, 512 char system instruction, up to 14 reference images (6 objects + 5 humans). Creative modes: Faithful (exact adherence), Expressive (creative liberties), Vision (artistic concept), Image Asset (single photo/illustration). Supports multi-turn editing capability. Model tiers: `gemini-3-pro-image-preview` (Pro), `gemini-3.1-flash-image-preview` (Nano Banana 2/Flash), `gemini-2.5-flash-image` (economical). Known limitation: all text rendering is garbled. Full prompt guide at `systems/prompt-writer/knowledge/models/image/nanobanana-pro.md`.
-- **NanoBanana (Flash)**: High-efficiency variant via WisGate: `gemini-3.1-flash-image-preview` (Nano Banana 2) and `gemini-2.5-flash-image` (economical). Accessed through ImageEngine. Good for iterations and single assets. Pro tier recommended for final storyboard visuals.
-- **Kling**: AI video generation model (fal.ai image-to-video). Takes a NanoBanana Pro still image as the anchor frame and animates it into a video clip. Supports up to 15s duration at 1080p. SceneBoard uses image-to-video mode exclusively — the prompt describes motion, camera movement, and animation direction rather than scene visuals (those are already in the image). Negative prompts prevent artifacts like morphing, sliding feet, and jitter. Prompt guide: `systems/prompt-writer/knowledge/models/video/kling.md`.
-- **Voice Script**: Narration/dialogue audio for the video. Not always needed — SceneBoard asks whether the video requires it.
-- **On-Screen Script/Text**: Text overlays that appear visually in the video. Not always needed — SceneBoard asks whether the video requires it.
-- **Dynamic Workflow**: The core design principle — any component provided in the brief is locked in; any component missing is generated with options for approval. This applies uniformly to every part of the storyboard.
+- **Brief**: The input to SceneBoard. Can be anything — an Instagram link with proposed changes, a detailed document, a raw idea, a script, a voice script, or any combination. There is no fixed format.
+- **Composite Storyboard Sheet**: The primary deliverable. A **single image** containing a header (brand + "15-SECOND STORYBOARD"), a grid of numbered panels, each panel carrying a timecode (e.g. `00:00-00:01`) and a one-line shot description. Generated as one render via GPT Image 2 (GPT Image 2 renders legible in-image text reliably, unlike NanoBanana). Reference look: `templates/examples/storyboard-sheet-example-1.png` / `-2.png`.
+- **Panel**: One numbered cell in the sheet grid. **Variable-duration** — a panel may span more than one second; drop the legacy "1 panel ≈ 1 second" assumption. The only hard rules: per-panel timecodes sum to the sheet's ≤15s window, and a sensible panel cap (≤ ~15, sized to the grid).
+- **Sheet (≤15s block)**: Each composite sheet covers **≤ 15 seconds**. Videos longer than 15s are split into multiple sheets (one per ≤15s block) with continuing timecodes via `splitIntoSheets()`.
+- **Grid mapping**: panel count → grid. 9→3×3, 12→3×4, 15→3×5 (default), 20→4×5; vertical 9:16 flips rows×cols (e.g. 15→5×3).
+- **GPT Image 2**: The image model (`gpt_image_2` on Higgsfield; `gpt-image-2`/`gpt-image-1.5` on the ImageEngine fallback). No separate system-instruction slot — the full prompt is one continuous body. Strong at rendering legible in-image text (panel numbers, timecodes, captions). Prompt guide: `systems/prompt-writer/knowledge/models/image/gpt-image-2.md`.
+- **Higgsfield CLI**: The **primary** image transport. SceneBoard shells out to the globally-installed `higgsfield` binary (`higgsfield generate create gpt_image_2 … --wait --json`), parses the result URL, and downloads the image. Reference images via repeatable `--image` (up to ~8). See `knowledge/higgsfield-cli.md`.
+- **ImageEngine (fallback)**: The existing typed HTTP client (`src/image-client.ts`, localhost:3002, wraps WisGate). Used **automatically** whenever the Higgsfield CLI is unavailable, unauthenticated, or fails. Caps at 3 reference images. ImageEngine remains `active` in the registry — it is the fallback transport, not retired.
+- **Provider façade**: `src/image-provider.ts` — `generateImage()` tries Higgsfield first, falls back to `image-client.generateSingle()`; logs which provider served the request.
+- **Reference Sheet (4-view)**: A generalized Stage 4.5 artifact (`src/reference-sheet-generator.ts`). Two types — **character** (FULL BODY FRONT / FULL BODY REAR / FRONT CLOSE-UP / PROFILE CLOSE-UP) and **product** (FRONT THREE-QUARTER / REAR STRAIGHT-ON / FRONT CLOSE-UP / PROFILE LEFT) — each rendered as four views on a neutral grey background with clean studio lighting, fed as reference image(s) into the composite sheet. Replaces the legacy 6-pose character-sheet layout.
+- **brand_category**: A client brand profile field (`clothing | product | service`) that routes reference-sheet reusability — see "Reference Sheet Reusability" below.
+- **Voice Script / On-Screen Text**: Narration/dialogue and text overlays. Not always needed — SceneBoard asks before generating.
+- **Dynamic Workflow**: The core design principle — any component provided in the brief is locked in; any component missing is generated with options for approval.
+
+## Image Path: Higgsfield Primary → ImageEngine Fallback
+
+- **Primary — Higgsfield CLI** (`src/higgsfield-client.ts`): spawns `higgsfield generate create gpt_image_2 … --aspect_ratio … --quality high --resolution 2k [--image …]… --wait --json`, parses the JSON job array for the result media URL, downloads to disk. Exposes `checkAuth()`. Typed errors: `HiggsfieldCliError` (non-zero exit / parse failure), `HiggsfieldTimeoutError` (wait exceeded), `HiggsfieldAuthError` (unauthenticated / session expired).
+- **Fallback — ImageEngine HTTP** (`src/image-client.ts`): reused unchanged. The provider façade falls back on **any** Higgsfield failure via `generateSingle({ model: "gpt-image-2" })` with a `gpt-image-1.5` retry.
+- **Aspect ratio mapping**: 16:9 landscape is the default for sheets; 9:16 vertical is supported (flips the grid rows×cols).
+- **Reference cap**: Higgsfield ~8 refs (repeatable `--image`); ImageEngine 3 refs. The composite-sheet reference resolver prioritizes subjects appearing earliest/most often when over the cap.
+
+## Reference Sheet Stage (Stage 4.5) — Character + Product, 4-view
+
+The reference-sheet generator (`src/reference-sheet-generator.ts`) calls `image-provider.generateImage()` (Higgsfield primary → ImageEngine fallback), uses gpt-image-2, and emits 4-view sheets for two subject types. `[INSERT DESIRED STYLE]` is filled from the locked Style Anchor; the bracketed subject/garment slots are filled from the locked description (+ selected garments for clothing brands). Per-subject parallel generation with per-subject error handling is preserved.
+
+**Character reference sheet (4 views):** FULL BODY FRONT (three-quarter, head-to-feet) · FULL BODY REAR (directly behind) · FRONT CLOSE-UP (head & shoulders, straight-on) · PROFILE CLOSE-UP (90° left profile). Clean studio lighting (soft key upper-left, gentle fill from the right), consistent identity/proportions/costume across all four views, no text/watermarks/extra figures/background.
+
+**Product reference sheet (4 views):** FRONT THREE-QUARTER · REAR STRAIGHT-ON · FRONT CLOSE-UP · PROFILE LEFT-SIDE. Photorealistic product-photography style, neutral grey background, consistent device identity/proportions/colour/hardware across all four views, no text/watermarks/extra objects/background.
+
+A single storyboard may use **multiple character AND product sheets together** (e.g. a model holding a soda can). The composite-sheet reference resolver (`resolveSheetReferences()`, adapted from the legacy `resolveReferenceImageIds()`) collects **all** approved reference sheets for the storyboard as the reference images passed into composite-sheet generation, capped at the provider's reference limit.
+
+### Reference Sheet Reusability — routed by `brand_category`
+
+Read from `client/{client}/brand.md` (`brand_category: clothing | product | service`):
+
+| brand_category | Reference sheets | Cache path | Clothing intake |
+|---|---|---|---|
+| `clothing` | **Per-storyboard** (model wears that storyboard's selected garments) | `client/{client}/storyboards/{project}/references/{slug}/` | Asks **which brand garments the model wears**, and **per storyboard** `[R] Reuse cached model identity` / `[N] New model this storyboard` (reuse pulls a cached identity and re-renders it wearing the new outfit) |
+| `product` | **Reusable common sheets** shared across storyboards | `client/{client}/references/{slug}/` | n/a |
+| `service` | Reusable (treated like product for sheet purposes) | `client/{client}/references/{slug}/` | n/a |
+
+## Phase 1 — Composite Sheet Prompt (sections A–H)
+
+`src/storyboard-sheet-prompt.ts` ports the storyboard-prompt-builder Phase 1 logic into a single continuous prompt with sections A–H: title/format header, style declaration, character/product descriptions, visual tone, layout details (grid for the panel count), per-panel scene breakdown (numbered, with timecodes + captions), art-direction footer, render/format footer. Character/product DNA (locked descriptions + reference sheets) is woven into panel descriptions; shot-type variety and three-act pacing helpers are applied. `splitIntoSheets(beats, durationSeconds)` returns N sheet specs for >15s videos with correct continuing timecodes.
+
+## Phase 2 — Cinematic Video Prompt
+
+`src/video-prompt.ts` ports Phase 2: approved panels → timed shots (timecode, SHOT N label, shot type + camera, scene direction, dialogue, SFX, camera-movement verb), a production header (reference-image mandate, character consistency, style block), and the **fixed closing line**: `Audio: Diegetic sound only — natural ambience, environmental foley, and subject-driven sound.` Language is style-adaptive (3D / live-action / anime / 2D); time distribution sums to the target duration; shot count matches panel count.
 
 ## Quality Standards
 
 ### Hard Requirements
-- Storyboard must look professional — presentation quality that impresses clients on sight
-- Script must be the best possible interpretation of the given brief
-- NanoBanana Pro prompts must accurately match the visual direction for each scene — no mismatch between what's described and what the prompt will generate
-- Reference images must align with the prompts and visual direction — no mismatches
-- Shot duration/pacing must be confirmed with the user (no assumptions)
-- Voice script and on-screen text inclusion must be explicitly confirmed with the user before generating
+- Storyboard must look professional — presentation quality that impresses clients on sight ("client gets flattened").
+- Script must be the best possible interpretation of the given brief.
+- The composite-sheet Phase 1 prompt must accurately match the locked visual direction and Style Anchor for every panel — no mismatch between what's described and what gets rendered.
+- Reference sheets must align with the locked descriptions and the Style Anchor — no mismatches.
+- Panel timecodes must sum to the sheet's ≤15s window; the panel count must stay within the grid cap.
+- Shot duration/pacing must be confirmed with the user (no assumptions).
+- Voice script and on-screen text inclusion must be explicitly confirmed with the user before generating.
 
 ### Quality Signals
-- **"Client gets flattened"** — the storyboard is so good that the client is immediately impressed and convinced
-- Script uses the best audience engagement tactics available (hooks, emotional triggers, persuasion frameworks from marketing/psychology skills)
-- Vague briefs are interpreted by capturing the key points, feelings, and energy of what was given — then producing the best possible output that honors that intent
-- Prompts and reference images are cohesive and clearly convey the intended visual for each scene
-- The complete document reads as a unified, professional creative deliverable
+- **"Client gets flattened"** — the storyboard is so good that the client is immediately impressed and convinced.
+- Script uses the best audience engagement tactics available (hooks, emotional triggers, persuasion frameworks).
+- Vague briefs are interpreted by capturing the key points, feelings, and energy of what was given.
+- The composite sheet reads as a single coherent piece — consistent style, legible panel text, sensible pacing across panels.
+- The complete document reads as a unified, professional creative deliverable.
 
 ### Rejection Criteria
-- Storyboard doesn't look professional
-- NanoBanana Pro prompts and reference guidance are mismatched or low quality
-- Script doesn't capture the brief's intent, energy, or feeling
-- Visual direction doesn't reflect the story or isn't understandable by the audience
+- Storyboard doesn't look professional.
+- The Phase 1 prompt and the locked visual direction are mismatched or low quality.
+- Script doesn't capture the brief's intent, energy, or feeling.
+- Visual direction doesn't reflect the story or isn't understandable by the audience.
 
-### Scene-to-Scene Consistency Protocol
+### Visual Consistency Protocol
 
-Visual consistency across scenes is enforced at four cumulative levels. The highest-priority tier (0) is only active when a Character Sheet exists — i.e., when the script had ≥2 protagonists and the user approved sheet generation at Stage 4.5.
+Consistency across panels and across sheets is enforced cumulatively:
 
-0. **Character Reference Sheet** (per-character pixel anchor, Stage 4.5 output): When a scene features a named character from the Character Sheet, the character's single composite sheet image (showing all 6 poses on a clean white studio backdrop) is injected as a reference for that scene. One image per character; up to 3 characters fill the 3-reference cap. NanoBanana Pro can pull identity from whichever angle in the composite matches the scene's camera — the pipeline does not need to pre-select a view. This is the highest-priority consistency signal — character identity is pixel-locked across every shot they appear in.
+0. **Reference Sheets (pixel anchor, Stage 4.5)** — All approved 4-view character/product sheets are passed as reference images into the composite-sheet generation (Higgsfield up to ~8; ImageEngine 3). Identity/product is pinned across every panel that features the subject. Highest-priority signal when present.
+1. **Style Anchor Preamble (baseline)** — A condensed visual identity woven into the Phase 1 prompt's style declaration (section B). Handles palette, photographic/illustration style, lighting mood, camera conventions. When reference sheets exist, the Style Anchor must NOT redefine a subject's physical appearance — it only constrains stylistic treatment.
+2. **Character/Product DNA (text)** — Locked physical/product descriptions woven verbatim into the relevant panel descriptions.
+3. **Cross-sheet continuity** — For multi-sheet (>15s) storyboards, the same reference sheets + Style Anchor + DNA carry across all sheets so the look holds from block to block.
 
-1. **Style Anchor Preamble** (baseline): A 200-400 char condensed visual identity included verbatim at the start of every NanoBanana Pro prompt. Handles: color palette, photographic style, lighting mood, camera conventions.
+## Iterate Flow — Reference-Based Panel Edit
 
-2. **Character Consistency Protocol** (subject-level, text): A locked physical description of each character (sourced from `Character.lockedDescription` in the registry when the Character Sheet exists, or defined inline in the Style Anchor otherwise) repeated verbatim in every scene prompt featuring that character. Handles: skin tone, hair, build, expression range, clothing continuity, distinguishing features. Complements tier 0 at the prose level.
-
-3. **Reference Image Feedback Loops** (pixel-level, environment): Generated images from earlier scenes are passed as `referenceImageIds` to subsequent scenes via the batch generator's `dependsOn` mechanism. Scene 1 establishes the visual baseline; Scenes 2-N reference Scene 1's output. **Dropped from a scene's reference list when character sheets fill all 3 slots** — the conscious trade-off is face fidelity over environment continuity in multi-protagonist scenes.
-
-The four levels are cumulative where they don't conflict. Conflict handling:
-- Character sheets (tier 0) always take priority when present; the Scene-1 anchor (tier 3) is dropped to stay within the 3-reference cap.
-- When the Character Sheet exists, the Style Anchor (tier 1) must NOT redefine physical appearance for sheet characters — it only constrains stylistic treatment (lighting, palette, mood).
-
-Per-scene reference injection: `resolveReferenceImageIds(scene, registry)` maps each character slug in `scene.characters` to the character's `sheet.imageId` and places up to 3 of them first in the reference list; remaining slots (if any) carry over from `scene.referenceImageIds` (e.g., Scene-1 environment anchor). The composite sheet shows all six angles, so NanoBanana Pro will lean on whichever angle matches the scene's camera without the pipeline needing to pre-select a view.
+To change a panel, SceneBoard passes the **approved storyboard sheet image back to Higgsfield as a reference image** with an instruction to reproduce the sheet exactly while changing only the named panel(s), then regenerates the **full sheet** (same reference-based edit path on the ImageEngine fallback). Best-effort caveat applies — the model reproduces, not pixel-copies. Full-sheet re-runs and Phase 2 regeneration are also supported. This replaces the legacy per-scene re-generation model.
 
 ## Edge Cases & Gotchas
 
 ### Common Failures
-- **Prompt/visual mismatch**: The #1 problem. NanoBanana Pro prompts produce visuals that don't match the product, don't fit the required style, or feel generic. SceneBoard must ensure prompts are highly specific to the product/brand and style direction.
-- **Style inconsistency**: Generated visuals across scenes don't maintain a consistent style. Prompts must enforce style coherence across the entire storyboard.
+- **Prompt/visual mismatch**: The #1 problem. The Phase 1 prompt must be highly specific to the product/brand and the locked Style Anchor — generic prompts produce generic sheets.
+- **Style inconsistency across panels/sheets**: Enforced via the Style Anchor preamble in section B + reference sheets. Without the anchor, panels drift.
+- **In-image text**: GPT Image 2 renders legible panel numbers, timecodes, and short captions reliably — a deliberate reason for the model choice (legacy NanoBanana garbled all text). Keep captions short; long paragraphs of in-image text still degrade.
 
 #### Style Anchor System
-To prevent style inconsistency across scenes, SceneBoard uses a Style Anchor mechanism:
-
-1. **Style Anchor Document**: At the start of visual direction (Stage 5), generate a "Style Anchor" that defines: color palette, photographic/illustration style, degree of abstraction, lighting mood, camera style conventions, and character/product representation rules.
-2. **Lock-in**: The Style Anchor is presented to the user for approval before any scene-level prompts are generated. No prompts are written until the anchor is locked in.
-3. **Enforcement**: Every NanoBanana Pro prompt must include the Style Anchor's constraints as a prefix/preamble, ensuring all scenes share the same visual language. This is non-negotiable — prompts without the anchor preamble will produce visually unrelated images.
-4. **Override**: Individual scenes can override specific Style Anchor properties if the narrative requires it (e.g., a flashback scene shifting to desaturated tones), but overrides must be explicit and intentional — clearly marked in the prompt and approved by the user.
-
-### Non-Obvious Behaviors
+1. **Style Anchor Document** — At the start of visual direction, generate a Style Anchor defining: color palette, photographic/illustration style, degree of abstraction, lighting mood, camera conventions, and subject representation rules.
+2. **Lock-in** — Presented for approval before any Phase 1 prompt is assembled.
+3. **Enforcement** — The Style Anchor is woven into section B of every Phase 1 prompt and `[INSERT DESIRED STYLE]` of every reference-sheet prompt. Non-negotiable.
+4. **Override** — Individual panels may override specific properties (e.g. a desaturated flashback) only when explicit, intentional, and approved.
 
 #### Contradictory Briefs
-When a brief has contradictions (e.g., "fun but corporate"), SceneBoard should:
-1. Research if similar combinations have been done successfully in the market
-2. Take inspiration from proven examples that balanced those tensions
-3. If no precedent exists, be extremely creative in finding a resolution
-4. Present the approach to the user for approval before proceeding
+Research proven market precedents that balanced the tension; if none exist, resolve creatively; present the approach for approval before proceeding.
 
 #### Reference Video Links (Instagram, etc.)
-When a client provides a video link as a brief:
-- Analyze the video carefully — shot composition, style, pacing, transitions, tone
-- Interpret the client's intent from their instructions alongside the video:
-  - "We want something like this" = recreate the style/structure with their product
-  - "Similar style and shots but with X changes" = keep the template, swap specified elements
-  - Client can also ask for complete style changes while keeping the structure, or vice versa
-- The key: understand what the client wants to keep vs. what they want to change
+Analyze shot composition, style, pacing, transitions, tone. Distinguish what the client wants to keep vs. change ("like this" = recreate style/structure with their product; "similar but with X changes" = keep template, swap specified elements).
 
 #### Platform-Aware Storyboards
-Storyboard output must adapt to the target platform:
-- Aspect ratio (9:16 for Reels/TikTok/Shorts, 16:9 for YouTube, 1:1 for feed posts, etc.)
-- Duration constraints per platform
-- Tone and pacing norms (fast-cut for TikTok, longer takes for YouTube, professional for LinkedIn)
-- These should be asked during context gathering
+Output adapts to the target platform: aspect ratio (9:16 vertical sheets flip the grid; 16:9 landscape is default), duration constraints (drives sheet count), tone and pacing norms. Asked during context gathering.
 
-#### Partial Re-Runs
-SceneBoard must support re-running parts of the pipeline after revisions:
-- Regenerate specific scenes (e.g., scenes 3-5 only) without redoing the entire storyboard
-- Re-prompt specific NanoBanana generations while keeping approved scenes intact
-- Pipeline state must be preserved to enable surgical revisions
+#### Multi-Sheet Splitting (>15s)
+Videos longer than 15s split into N sheets (one per ≤15s block) via `splitIntoSheets()`, with continuing per-panel timecodes. Each sheet is its own composite image; all share the same reference sheets, Style Anchor, and DNA.
+
+#### Partial Re-Runs / Iteration
+Re-run a sheet (reference-based panel edit) or regenerate Phase 2 without redoing the whole pipeline. Pipeline state (locked script, Style Anchor, reference sheets, approved sheets) is preserved.
 
 #### Text-Heavy Scenes
-Since NanoBanana Pro cannot render text reliably (garbled output):
-- For title cards, CTA screens, text overlays — use Remotion skill for text rendering
-- Future: find a better alternative to handle text in visuals
-- Storyboard should clearly mark which scenes need text overlay treatment vs. pure image generation
-
-## Image Generation Workflow
-
-SceneBoard integrates with ImageEngine (running on localhost:3002) for actual image generation. ImageEngine wraps the WisGate API and handles rate limiting, budget management, and cost tracking.
-
-### Integration Architecture
-- **HTTP Client**: `src/image-client.ts` — typed client for all ImageEngine endpoints
-- **Batch Generator**: `src/batch-generator.ts` — orchestrates parallel/sequential generation for all scenes
-- **Storyboard Assembler**: `src/storyboard-assembler.ts` — injects generated image URLs into storyboard documents
-
-### Model Selection
-- Use `gemini-2.5-flash-image` or `gemini-3.1-flash-image-preview` during iteration (fast, economical)
-- Use `gemini-3-pro-image-preview` for final storyboard output (highest quality)
-
-### Parallel vs Sequential Generation
-- **Independent scenes** (no cross-references): generated in parallel via batch endpoint
-- **Dependent scenes** (scene B references scene A's output): generated sequentially — scene A completes first, its image is passed as a reference for scene B
-
-### Reference Feedback Loops
-- Generated image from scene A can be passed as a reference for scene B
-- ImageEngine supports up to 14 reference images per request (6 objects + 5 humans)
-- Previous generations can be loaded as references via `POST /api/gallery/:id/use-as-reference`
-
-### Re-Generation
-- Individual scene re-gen via `generateSingle()` in image-client
-- Full re-gen via `generateBatch()` with updated prompts
-- Re-generation does not affect other scenes' approved images
-
-### Budget Awareness
-- Budget is checked before batch generation starts
-- If token spend exceeds 80% of ceiling, user is warned
-- If ceiling is exceeded, generation stops (402 response from ImageEngine)
-- Budget override available via `X-Budget-Override: true` header for emergencies
+GPT Image 2 handles short in-image captions/timecodes well. For dense text overlays in the final video (title cards, CTAs), Remotion remains the recommended downstream tool — mark those panels for Remotion treatment.
 
 ## Tacit Knowledge
 
-### Decision Heuristics
+### Framework Selection
+Determine the best marketing/engagement framework by: analyzing the brief (ad / showcase / explainer / testimonial / brand story), asking targeted questions, cross-referencing skills (ad-creative, copywriting, marketing-psychology, social-content), and matching framework to intent (sell → hook→problem→solution→CTA; brand awareness → emotional narrative; testimonial → trust-building; showcase → feature-driven; viral → pattern interrupt). Blend frameworks when the brief calls for it.
 
-#### Framework Selection System
-SceneBoard must autonomously determine the best marketing/engagement framework by:
-1. Analyzing the brief — what type of video is it? (ad, showcase, explainer, testimonial, brand story, etc.)
-2. Asking the user targeted questions to fill gaps in understanding
-3. Cross-referencing available skills (ad-creative, copywriting, marketing-psychology, social-content, etc.) to select the right approach
-4. Matching framework to intent:
-   - Selling a product/service → hook → problem → solution → CTA
-   - Brand awareness → storytelling, emotional narrative
-   - Social proof / testimonials → trust-building framework
-   - Product showcase → feature-driven, visual-first approach
-   - Engagement/viral → pattern interrupt, curiosity loops
-5. The system should be smart enough to blend frameworks when a brief calls for it
-
-#### Video Type Determines Structure
-- **Ad (15-30s)**: Fast-paced, hook in first 2-3 seconds, tight CTA, minimal scenes, high impact per shot
-- **Product showcase**: Feature-focused, clean visuals, let the product speak, moderate pacing
-- **Brand story (60s+)**: Narrative arc, emotional build, more scenes with longer holds
-- **Social content (Reels/TikTok)**: Trend-aware, fast cuts, attention-grabbing hooks, native feel
-- **Explainer**: Problem → solution flow, clear visual metaphors, educational pacing
-- Duration and platform fundamentally change the storyboard structure, pacing, and number of shots
+### Video Type Determines Structure
+- **Ad (15-30s)**: Fast-paced, hook in first 2-3s, tight CTA, high impact per panel.
+- **Product showcase**: Feature-focused, clean visuals, moderate pacing.
+- **Brand story (60s+)**: Narrative arc, more panels/sheets with longer holds.
+- **Social (Reels/TikTok)**: Trend-aware, fast cuts, native feel, vertical 9:16.
+- **Explainer**: Problem → solution flow, clear visual metaphors.
+- Duration and platform fundamentally change the panel count, pacing, and number of sheets.
 
 ### Experience-Based Rules
-- **Garbage in, gold out**: Even with a vague or minimal brief, SceneBoard's job is to extract the essence — the feeling, energy, and intent — and produce the best possible storyboard. Ask clarifying questions, but don't require a perfect brief to deliver excellent work.
-- **Visuals + story alignment = client approval**: Clients approve when the visuals are high quality AND the story is clearly aligned with what they asked for in the brief. Both must be present.
-- **The brief is flexible, the output is not**: Accept any input format, but the output must always be a polished, professional storyboard document. No excuses for rough output regardless of input quality.
-- **Ask, don't assume**: For anything that could go multiple ways (shot duration, voice script needed, on-screen text needed, platform, aspect ratio), always ask the user rather than making assumptions.
-- **Style consistency is enforced through a Style Anchor document generated once and carried into every scene prompt. Without this, scenes drift into visually unrelated images — the #2 failure mode after prompt/visual mismatch.**
-- **Character consistency in multi-protagonist scripts is enforced through the optional Stage 4.5 Character Sheet (one composite reference image per character on a clean white studio backdrop, showing all 6 poses — large face close-up, left/right face profiles, back-of-head, full-body front, full-body back — in a single wide image). When ≥2 protagonists are detected, the skill offers to generate sheets; if accepted, each scene prompt injects that character's single composite sheet as a reference image, and NanoBanana Pro pulls identity from whichever angle in the composite matches the scene's camera. Text-only character descriptions drift when ≥2 characters share a scene — composite sheets prevent that drift at the cost of the Scene-1 environment anchor in character-dense scenes.**
+- **Garbage in, gold out**: Extract the essence (feeling, energy, intent) even from a vague brief.
+- **Visuals + story alignment = client approval**.
+- **The brief is flexible, the output is not**: Any input format; always a polished, professional storyboard.
+- **Ask, don't assume**: shot duration, voice script, on-screen text, platform, aspect ratio, `brand_category` — always confirm.
+- **Variable panel duration**: never assume 1 panel = 1 second. Read per-panel timecode ranges from the scene breakdown; only enforce the ≤15s sum and the panel-count cap.
+- **Style consistency** comes from the Style Anchor (section B) carried into every Phase 1 prompt; **subject consistency** comes from the 4-view reference sheets passed as reference images.
 
 ## Client System
 
-SceneBoard supports per-client brand knowledge that is loaded automatically when generating storyboards.
+Per-client brand knowledge is loaded automatically when generating storyboards.
 
 ### Directory Structure
-
-```
+```plaintext
 client/
   {client-slug}/
-    brand.md              # Compiled brand profile (quick-reference)
+    brand.md              # Compiled brand profile (quick-reference) — includes brand_category
     knowledge/            # Detailed brand knowledge files
-      brand-positioning.md  # Full brand positioning & strategy
-      visual-direction.md   # Visual identity & art direction
-    characters/           # Reusable Stage 4.5 character sheets (per-character folder)
-      {character-slug}/
-        character.md        # frontmatter + locked description + sheet image ID
-        sheet.png           # cached composite reference sheet (gallery is source of truth)
+      brand-positioning.md
+      visual-direction.md
+    references/           # Reusable reference sheets (product/service brand_category)
+      {slug}/             # 4-view sheet + metadata, reused across storyboards
     storyboards/          # Generated storyboard outputs
+      {project}/
+        references/{slug}/ # Per-storyboard reference sheets (clothing brand_category)
       {project-name}-v{N}.md   # Markdown storyboard
       {project-name}-v{N}.pdf  # PDF storyboard
 ```
 
 ### How Brand Knowledge Is Loaded
-
-1. **Stage 0 (Client Selection)** of the Generate Storyboard pipeline asks which client the storyboard is for.
-2. If a client is selected, `brand.md` is read into context — providing brand voice, style philosophy, target audience, visual direction, and competitive positioning.
-3. Detailed knowledge files from `knowledge/` are loaded for deeper context (art direction principles, photoshoot concepts, etc.).
-4. This pre-loaded context **eliminates most brand-related questions** in Stage 2 (Context Gathering), accelerating the pipeline.
-5. The brand context also informs the Style Anchor in Stage 5, ensuring visual consistency with the client's established identity.
+1. **Stage 0 (Client Selection)** asks which client the storyboard is for.
+2. If selected, `brand.md` is read into context — including `brand_category`, brand voice, style philosophy, audience, visual direction, positioning.
+3. Detailed `knowledge/` files load for deeper context.
+4. `brand_category` routes Stage 4.5 reference-sheet reusability (clothing → per-storyboard; product/service → reusable).
+5. The brand context informs the Style Anchor, ensuring visual consistency with the client's identity.
 
 ### Client Management
-
-The `[MC] Manage Client` capability allows creating or updating client profiles through a guided workflow. See `manage-client.md`.
+The `[MC] Manage Client` capability creates/updates client profiles (including the `brand_category` prompt) through a guided workflow. See `manage-client.md`.
 
 ## PDF Output
 
-SceneBoard generates professional PDF storyboards alongside the markdown output.
+SceneBoard generates a professional PDF storyboard alongside the markdown.
 
-### PDF Format
-
-The PDF follows a professional tabular layout:
-
-1. **Project Specs Header** — A header table with: Duration, Format, Style, Product, Model, Setting, Audio
-2. **Scene-by-Scene Table** — Columns: Seq, Scene, Visual Action & Composition, Audience Sees, Audio/Text
-3. **Production Notes** — Color palette, lighting approach, camera style, text style, music direction
-4. **B-Roll Shots** — If applicable, recommended B-roll shots with descriptions
+### PDF Structure
+1. **Project Specs Header** — Duration, Format, Style, Product, Model, Setting, Audio.
+2. **Style Anchor** + **Reference Sheets** (character + product, 4-view).
+3. **Storyboard Sheet(s)** — the embedded composite image per ≤15s block, the Phase 1 prompt used, and a panel/timecode table.
+4. **Phase 2 Cinematic Video Prompt**.
+5. **Production Notes** — color palette, lighting, camera style, music direction.
 
 ### Output Location
+- **With client context**: `client/{client}/storyboards/{project-name}-v{N}.{md,pdf}`.
+- **Without client context**: User-specified location.
 
-- **With client context**: `client/{client}/storyboards/{project-name}-v{N}.pdf`
-- **Without client context**: User-specified location
-
-Both markdown and PDF versions are saved. Previous versions are preserved (not overwritten) when iterating.
+Both versions saved; previous versions preserved (not overwritten) when iterating.
 
 ## Dependencies
-- Marketing/Sales/Social/Ads skills from Adcelerate skill library:
-  - `ad-creative` — ad scripts, headlines, variations
-  - `copywriting` — marketing copy, CTAs, value propositions
-  - `social-content` — social media content creation
-  - `marketing-psychology` — behavioral science, persuasion frameworks
-  - `paid-ads` — campaign strategy, targeting
-  - `sales-enablement` — pitch decks, demo scripts
-  - `content-strategy` — editorial planning
-- ImageEngine — centralized image generation gateway via WisGate API (wraps Gemini models). Prompt guide: `systems/prompt-writer/knowledge/models/image/nanobanana-pro.md`
-- ImageEngine Flash models — faster/cheaper variants (gemini-3.1-flash, gemini-2.5-flash) via ImageEngine
-- Remotion — for text-heavy scenes (title cards, CTAs) since NanoBanana can't render text
+- Marketing/Sales/Social/Ads skills: `ad-creative`, `copywriting`, `social-content`, `marketing-psychology`, `paid-ads`, `sales-enablement`, `content-strategy`.
+- **Higgsfield CLI** — primary image transport (global binary; environment prerequisite, not an npm dep). See `dependencies.md`.
+- **ImageEngine** — fallback image transport (localhost:3002, wraps WisGate). Stays `active`.
+- **PromptWriter** — authoritative prompt-knowledge source: `systems/prompt-writer/knowledge/models/image/gpt-image-2.md` and the storyboard-prompt-builder methodology.
+- **Remotion** — downstream text-heavy scene rendering (title cards, CTAs).
 
 ## Input/Output Specifications
 ### Inputs
-- Brief: any format (Instagram link, detailed doc, raw idea, script, voice script, or combination)
-- Brand/client context gathered during context phase
-- User approval decisions at each gate
+- Brief: any format (Instagram link, detailed doc, raw idea, script, voice script, or combination).
+- Brand/client context (incl. `brand_category`) gathered during context phase.
+- Character/product reference images (for reference-sheet accuracy) and garment selection (clothing brands).
+- User approval decisions at each gate.
 
 ### Outputs
 - Professional storyboard document containing:
-  - Scene-by-scene breakdown (1 scene = 1 shot = 1 image)
-  - Timestamps per scene
-  - Approved script (if applicable)
-  - Approved voice script (if applicable)
-  - On-screen text (if applicable)
-  - Visual direction per scene
-  - NanoBanana Pro prompts per scene
-  - Reference image guidance per scene
+  - Style Anchor + 4-view reference sheets (character + product, when generated).
+  - Approved script (if applicable), voice script (if applicable), on-screen text (if applicable).
+  - **Composite storyboard sheet image(s)** — one per ≤15s block — with the generating Phase 1 prompt and a panel/timecode table.
+  - **Phase 2 cinematic video prompt**.
+  - Production notes.
 
-## NanoBanana Pro — Scene-Level Prompt Guide
-
-The comprehensive NanoBanana Pro prompt guide (`systems/prompt-writer/knowledge/models/image/nanobanana-pro.md`) covers prompt anatomy, creative modes, subject/environment/lighting best practices, reference image strategy, and worked examples tailored for SceneBoard storyboard scenes. This section summarizes the key patterns for quick reference.
-
-### Translating UX Prompt Patterns to Scene Prompts
-
-| UX Prompt Concept | Scene Prompt Equivalent |
-|---|---|
-| Page layout / sections | Scene composition / foreground-midground-background |
-| UI components | Subject, props, environment elements |
-| Content fields / copy | Action, gesture, expression |
-| Color tokens / design system | Color palette, lighting mood, time of day |
-| Typography hierarchy | Visual hierarchy through scale, focus, depth of field |
-| Responsive breakpoints | Aspect ratio (9:16, 16:9, 1:1) |
-
-### Scene-Level Prompt Structure
-
-The recommended structure for a storyboard scene prompt:
-
-1. **Creative mode preamble** (Faithful/Expressive/Vision/Image Asset)
-2. **Scene context** — what moment in the story this is (e.g., "Opening shot establishing the problem")
-3. **Subject** — who/what is in the frame, product placement
-4. **Environment** — setting, location, background
-5. **Camera** — angle (wide, medium, close-up, overhead), movement suggestion
-6. **Lighting** — mood, time of day, key/fill balance
-7. **Composition** — rule of thirds placement, leading lines, depth
-8. **Style anchor reference** — link back to the style anchor constraints
-9. **Brand elements** — logo placement, brand colors, product packaging
-
-### Worked Example
-
-**Scene 3 of 6 — Product Reveal (15s Instagram Reel)**
-
-```
-System instruction (480 chars):
-"Professional commercial photographer creating a cinematic product shot for a social media ad. Clean, modern aesthetic with warm natural lighting. Product must be the clear focal point. Style: editorial product photography with lifestyle context."
-
-Prompt (1200 chars):
-"Close-up product shot of a matte black premium water bottle centered in frame on a light oak desk. Morning golden hour light streaming from the left through floor-to-ceiling windows. Shallow depth of field — bottle sharp, background soft bokeh of a minimalist home office. The bottle catches a subtle highlight along its curved edge. A small green plant and open notebook partially visible in soft focus behind. Color palette: warm neutrals, black product, touches of green. Aspect ratio: 9:16. The mood is calm, aspirational, morning routine. No text in image."
-```
-
-**Key differences from UX prompts:**
-- Names a specific physical subject (not UI components)
-- Describes camera angle and depth of field (not layout structure)
-- Specifies lighting mood and time of day (not design tokens)
-- Ends with "No text in image" (NanoBanana text limitation)
-
-## Kling — Video Prompt Guide
-
-> **Moved:** The Kling prompt guide has been migrated to the centralized PromptWriter system.
-
-See `systems/prompt-writer/knowledge/models/video/kling.md` for the comprehensive Kling prompt guide.
-
-SceneBoard uses Kling in image-to-video mode exclusively — the PromptWriter guide covers the full 4-layer prompt structure (subject motion, secondary motion, camera motion, atmosphere), camera keywords, negative prompt templates, and worked examples.
+## Reference Guides
+- Phase 1/Phase 2 methodology: `knowledge/storyboard-prompt-builder.md`.
+- Higgsfield CLI surface: `knowledge/higgsfield-cli.md`.
+- GPT Image 2 storyboard-sheet prompt guide: `systems/prompt-writer/knowledge/models/image/gpt-image-2.md` (centralized in PromptWriter).
+- Legacy NanoBanana Pro guide (`knowledge/nanobanana-pro-prompt-guide.md`) is retained for reference only — superseded by the GPT Image 2 / storyboard-builder guidance and no longer the active path.

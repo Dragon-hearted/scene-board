@@ -2,16 +2,16 @@
 // Generates structured AI image-generation context strings for Adcelerate surfaces.
 
 type Surface = "character-sheet" | "product-shot" | "storyboard-frame" | "cover-art";
-type Theme   = "paper" | "dark" | "midnight-purple";
+type Theme = "paper" | "dark" | "midnight-purple";
 
 interface BrandContextOptions {
-  surface: Surface;
-  theme?: Theme;
-  mood?: string;
+	surface: Surface;
+	theme?: Theme;
+	mood?: string;
 }
 
 const PALETTE_BLOCKS: Record<Theme, string> = {
-  paper: `
+	paper: `
   Background surface : #EEE6D4 (warm parchment — default)
   Primary / CTA      : #8B2A1D (oxblood)
   Secondary accent   : #1E5A7A (petrol)
@@ -20,7 +20,7 @@ const PALETTE_BLOCKS: Record<Theme, string> = {
   Neutral emphasis   : #5A4632 (cocoa)
   Text on surface    : #1A1714 (ink)`.trim(),
 
-  dark: `
+	dark: `
   Background surface : #111827 (dark gray)
   Primary / CTA      : #60a5fa (blue-400)
   Secondary accent   : #34d399 (emerald)
@@ -28,7 +28,7 @@ const PALETTE_BLOCKS: Record<Theme, string> = {
   Error              : #f87171 (rose)
   Text on surface    : #f9fafb (near-white)`.trim(),
 
-  "midnight-purple": `
+	"midnight-purple": `
   Background surface : #0f0a1a (near-black purple)
   Primary / CTA      : #a78bfa (violet-400)
   Secondary accent   : #8B2A1D (oxblood — brand mark on dark)
@@ -38,7 +38,7 @@ const PALETTE_BLOCKS: Record<Theme, string> = {
 };
 
 const SURFACE_GUIDANCE: Record<Surface, string> = {
-  "character-sheet": `
+	"character-sheet": `
 Surface: 6-panel character reference sheet.
 Layout: front / 3/4 / back / close-up face / hands detail / expression grid.
 Background: neutral (off-white or very light paper tone), not patterned.
@@ -46,21 +46,21 @@ Lighting: consistent studio — no dramatic rim lights; even, top-slightly-angle
 Line art: clean, no hatching. Flat cel shading or near-flat.
 No logos, no text overlays, no speech bubbles.`.trim(),
 
-  "product-shot": `
+	"product-shot": `
 Surface: single product on minimal background.
 Background: solid or near-solid — parchment, dark gray, or deep purple depending on theme.
 Lighting: soft side-fill, minimal shadow cast.
 No hands, no people, no lifestyle context.
 Cropping: centered, 10% breathing room on all sides.`.trim(),
 
-  "storyboard-frame": `
+	"storyboard-frame": `
 Surface: single cinematic frame for a video storyboard.
 Aspect ratio: 16:9 composition within the frame.
 Style: sketch / rough thumbnail — not polished illustration.
 Include basic scene blocking, no color (grayscale preferred).
 Annotate camera angle in the gutter if space allows.`.trim(),
 
-  "cover-art": `
+	"cover-art": `
 Surface: square cover art (1:1). Primary use: social, video thumbnail.
 Center the focal subject in the upper 60% of the frame.
 Title-safe zone: lower 25% reserved for text overlay — keep it simple / uncluttered.
@@ -68,12 +68,16 @@ Flat or semi-flat illustration. Pixel-art accents acceptable.
 No photography. No 3D renders.`.trim(),
 };
 
-export function brandContextPrompt({ surface, theme = "paper", mood }: BrandContextOptions): string {
-  const palette = PALETTE_BLOCKS[theme];
-  const surfaceGuide = SURFACE_GUIDANCE[surface];
-  const moodLine = mood ? `\nMood / tone: ${mood}` : "";
+export function brandContextPrompt({
+	surface,
+	theme = "paper",
+	mood,
+}: BrandContextOptions): string {
+	const palette = PALETTE_BLOCKS[theme];
+	const surfaceGuide = SURFACE_GUIDANCE[surface];
+	const moodLine = mood ? `\nMood / tone: ${mood}` : "";
 
-  return `
+	return `
 === Adcelerate Brand Context ===
 
 PALETTE (theme: ${theme})
