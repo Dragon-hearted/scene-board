@@ -1,0 +1,113 @@
+# systems/scene-board/knowledge/usage.yaml
+# Verified against scene-board @ 0.2.0 on 2026-05-30 (bun 1.3.6, higgsfield CLI 0.1.40).
+# NOTE: scene-board is SKILL-DRIVEN — there is no standalone storyboard CLI.
+# The end-to-end flow runs through the `scene-board` skill
+# (.claude/skills/scene-board/SKILL.md), which calls orchestrateStoryboard()
+# (src/orchestrate.ts) as a library entry. The package/just `storyboard` recipe
+# only prints that guidance and exits 1 (by design). The bun/just recipes below
+# (dev/build/test/lint/higgsfield-auth/generate-pdf) are the real executable surface.
+
+features:
+  - name: "Two-phase storyboard deliverable"
+    description: "Turns a video brief into a Phase 1 composite storyboard SHEET image plus a Phase 2 cinematic video prompt, via a dynamic approval-gated pipeline (orchestrateStoryboard, src/orchestrate.ts)."
+  - name: "Composite multi-panel storyboard sheet (Phase 1)"
+    description: "Renders ONE multi-panel sheet image per block — header bar, numbered panel grid, and per-panel timecodes + one-line shot captions baked into a single render — not one image per scene (src/storyboard-sheet-prompt.ts, sections A–H)."
+  - name: "Phase 2 cinematic video prompt"
+    description: "Per-shot timed prompt (timecode, SHOT N, shot type + camera, scene direction, dialogue, SFX, camera-movement verb) ready to paste into an AI video tool; always ends with the fixed Audio closing line (src/video-prompt.ts)."
+  - name: "≤15s multi-sheet splitting"
+    description: "Videos longer than 15s split into N sheets (one per ≤15s block) with continuing timecodes across sheets (splitIntoSheets, src/storyboard-sheet-prompt.ts)."
+  - name: "Variable-duration timecoded panels"
+    description: "Panels may span more than one second; per-panel timecodes must sum to the sheet's ≤15s window with a grid-sized panel cap (assignTimecodes, validateSheet)."
+  - name: "Adaptive grid mapping"
+    description: "Panel count maps to a grid — 9→3×3, 12→3×4, 15→3×5 (default), 20→4×5 — with rows×cols flipped for vertical 9:16 (gridForPanelCount)."
+  - name: "4-view character reference sheets"
+    description: "Generates a character sheet on neutral grey — FULL BODY FRONT / FULL BODY REAR / FRONT CLOSE-UP / PROFILE CLOSE-UP — filling [INSERT DESIRED STYLE] from the Style Anchor (composeCharacterSheetPrompt)."
+  - name: "4-view product reference sheets"
+    description: "Generates a photorealistic product sheet on neutral grey — FRONT THREE-QUARTER / REAR STRAIGHT-ON / FRONT CLOSE-UP / PROFILE LEFT (composeProductSheetPrompt). A storyboard may combine multiple character AND product sheets."
+  - name: "brand_category-routed reference reuse"
+    description: "Reads brand_category (clothing | product | service) from client/{client}/brand.md to route caching: clothing → per-storyboard sheets; product/service → reusable common sheets (readBrandCategory, resolveSheetDir)."
+  - name: "Reuse-vs-new model identity branch"
+    description: "For clothing brands, re-renders a cached model identity (passed as reference images) wearing newly selected garments, or generates a fresh model (reuseModelIdentity)."
+  - name: "Reference-image identity lock"
+    description: "All approved reference sheets feed into composite-sheet generation as references, capped at the provider limit (~8 Higgsfield paths / 3 ImageEngine ids), prioritizing subjects appearing earliest/most often (resolveSheetReferences)."
+  - name: "Style Anchor system"
+    description: "A locked Style Anchor (palette, render style, lighting, camera/character/product rules) is folded into every sheet and reference-sheet prompt to enforce cross-panel/cross-sheet visual consistency."
+  - name: "Dynamic approval-gated workflow"
+    description: "Every component (script, voice script, on-screen text, scene breakdown, visual direction, sheet, video prompt) is locked if provided in the brief, or generated as ≥2 options behind an [A]pprove/[M]odify/[R]eject gate if missing."
+  - name: "Higgsfield-primary provider façade with ImageEngine fallback"
+    description: "generateImage() (src/image-provider.ts) shells out to the Higgsfield CLI (gpt_image_2) first and silently falls back to the ImageEngine HTTP service (gpt-image-2 → gpt-image-1.5) on any auth/timeout/CLI failure, logging which transport served."
+  - name: "Reference-based iterate flow"
+    description: "Change one panel by passing the approved sheet back as a reference with a 'reproduce exactly, change only Panel N' instruction and regenerating the full sheet; full-sheet re-runs and Phase 2 regeneration without redoing the pipeline (.claude/skills/scene-board/iterate-storyboard.md)."
+  - name: "Client brand-profile management"
+    description: "Per-client brand profiles under client/{client}/ (brand.md positioning, voice, visual direction, brand_category) auto-loaded into the pipeline (.claude/skills/scene-board/manage-client.md)."
+  - name: "PDF storyboard generation"
+    description: "scripts/generate-pdf.sh converts a storyboard markdown into a styled A4 PDF via md-to-pdf, embedding the sheet image(s), Phase 1 prompt, panel/timecode table, and Phase 2 prompt (templates/pdf-styles.css)."
+  - name: "Markdown storyboard assembly"
+    description: "Assembles the final storyboard document from templates/storyboard-template.md, embedding generated sheet images into the markdown (src/storyboard-assembler.ts)."
+  - name: "Platform-aware output"
+    description: "Aspect ratio, grid orientation, duration limits, and pacing adapt to the target platform (9:16 Reels/TikTok/Shorts, 16:9 YouTube, 1:1 feed); sheet count = ceil(duration / 15s)."
+
+prerequisites:
+  - "Bun v1.0+ — curl -fsSL https://bun.sh/install | bash (verified with bun 1.3.6)"
+  - "Higgsfield CLI (PRIMARY image transport, environment prerequisite — NOT a package.json dep) — npm install -g @higgsfield/cli (or the install.sh / brew higgsfield-ai/tap/higgsfield). Verified: higgsfield 0.1.40."
+  - "Higgsfield auth — one-time `higgsfield auth login` (opens browser; creds in ~/.config/higgsfield). Unauthenticated → automatic ImageEngine fallback."
+  - "ImageEngine HTTP service (FALLBACK image transport) running at http://localhost:3002 — used whenever Higgsfield is unavailable/unauthenticated/fails."
+  - "md-to-pdf (installed via `bun install`; package.json dep ^5.2.4) — only needed for PDF output. Verified: 5.2.5."
+
+configVars:
+  - name: "IMAGE_ENGINE_URL"
+    required: false
+    description: "Base URL of the ImageEngine fallback HTTP service. Defaults to http://localhost:3002. The justfile loads a local .env (set dotenv-load)."
+
+install:
+  - "cd systems/scene-board"
+  - "bun install"
+
+usageSteps:
+  - title: "Install dependencies"
+    command: "cd systems/scene-board && bun install"
+    expected: "Resolves and installs deps (md-to-pdf, @biomejs/biome, typescript, @types/bun). VERIFIED: '2 packages installed'."
+  - title: "Run the test suite"
+    command: "bun test"
+    expected: "VERIFIED: 91 pass, 0 fail, 199 expect() calls across 5 files (prompt composer, video prompt, reference sheet, higgsfield client, provider fallback)."
+  - title: "Lint / format check"
+    command: "bun run lint"
+    expected: "VERIFIED: 'Checked 27 files ... No fixes applied' (biome check clean). Use `bun run check` to auto-fix."
+  - title: "Build for production"
+    command: "bun run build"
+    expected: "VERIFIED: 'Bundled 1 module' → dist/index.js (system metadata entry point; the storyboard flow itself is a library + skill)."
+  - title: "Check Higgsfield CLI auth (primary image transport)"
+    command: "bun run higgsfield-auth"
+    expected: "Runs `higgsfield account status`. VERIFIED authenticated: prints account email, plan, and remaining credits. Unauthenticated/exit≠0 → pipeline falls back to ImageEngine."
+  - title: "Confirm the GPT Image 2 model surface (no credits consumed)"
+    command: "higgsfield model get gpt_image_2 --json"
+    expected: "VERIFIED: JSON schema for gpt_image_2 — params aspect_ratio (1:1|4:3|3:4|16:9|9:16|3:2|2:3, default 1:1), quality (low|medium|high, default high), resolution (1k|2k|4k, default 2k), prompt (required), medias[], batch_size. Requires Higgsfield auth."
+  - title: "See the skill-driven entry notice (there is no storyboard CLI)"
+    command: "bun run storyboard   # or: just storyboard"
+    expected: "VERIFIED: prints 'scene-board is skill-driven — invoke the scene-board skill ... orchestrateStoryboard() ... is a library entry only' and exits 1. This is intentional, not an error."
+  - title: "Create a storyboard (the real flow — via the skill, in Claude Code)"
+    command: "Invoke the `scene-board` skill (see .claude/skills/scene-board/SKILL.md), then choose [GS] Generate Storyboard"
+    expected: "Runs the 8-stage approval-gated pipeline → composite sheet image(s) + Phase 2 video prompt + storyboard markdown under client/{client}/storyboards/{project}/. requires Higgsfield auth (or ImageEngine fallback) — not executed as a shell command (skill-driven, calls orchestrateStoryboard())."
+  - title: "Render a storyboard markdown to PDF"
+    command: "bun run generate-pdf path/to/storyboard.md   # or: bash scripts/generate-pdf.sh <input.md> [output.pdf]"
+    expected: "Converts the markdown to a styled A4 PDF via md-to-pdf (templates/pdf-styles.css), embedding sheet image(s), Phase 1 prompt, panel/timecode table, Phase 2 prompt. Requires an input storyboard .md — not executed (no sample storyboard present)."
+
+commandsReference:
+  - command: "just --list"
+    description: "List all justfile recipes (dotenv-load enabled)."
+  - command: "bun run dev"
+    description: "Run src/index.ts in watch mode (system metadata entry)."
+  - command: "bun run build"
+    description: "Bundle src/index.ts to dist/ (bun --target bun)."
+  - command: "bun test"
+    description: "Run the bun test suite (91 tests)."
+  - command: "bun run lint"
+    description: "biome check . (lint/format gate)."
+  - command: "bun run check"
+    description: "biome check --write . (auto-fix lint/format)."
+  - command: "bun run storyboard  (alias: just sheet)"
+    description: "Prints the skill-driven entry notice and exits 1 — no standalone CLI."
+  - command: "bun run higgsfield-auth"
+    description: "higgsfield account status — check the primary image-transport auth."
+  - command: "bun run generate-pdf <input.md> [output.pdf]"
+    description: "Convert a storyboard markdown to a styled PDF (scripts/generate-pdf.sh + md-to-pdf)."
