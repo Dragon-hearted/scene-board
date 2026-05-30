@@ -1,22 +1,24 @@
 {
-  "name": "adcelerate-scene-board",
-  "version": "0.1.0",
-  "type": "module",
-  "description": "CLI-driven storyboard creation system that transforms video briefs into professional storyboards with scripts, timestamps, voice scripts, and NanoBanana Pro prompts for visual generation",
-  "scripts": {
-    "dev": "bun run --watch src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target bun",
-    "test": "bun test",
-    "lint": "bunx @biomejs/biome check .",
-    "check": "bunx @biomejs/biome check --write .",
-    "generate-pdf": "bash scripts/generate-pdf.sh"
-  },
-  "dependencies": {
-    "md-to-pdf": "^5.2.4"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^1.9.0",
-    "@types/bun": "latest",
-    "typescript": "^5.7.0"
-  }
+	"name": "adcelerate-scene-board",
+	"version": "0.2.0",
+	"type": "module",
+	"description": "CLI-driven storyboard creation system that transforms video briefs into a composite multi-panel storyboard SHEET image (≤15s per sheet, GPT Image 2 via the Higgsfield CLI with ImageEngine fallback) plus a Phase 2 cinematic video prompt, with 4-view character/product reference sheets and timecoded panels",
+	"scripts": {
+		"dev": "bun run --watch src/index.ts",
+		"build": "bun build src/index.ts --outdir dist --target bun",
+		"test": "bun test",
+		"lint": "bunx @biomejs/biome check .",
+		"check": "bunx @biomejs/biome check --write .",
+		"storyboard": "bun run src/orchestrate.ts",
+		"higgsfield-auth": "higgsfield account status",
+		"generate-pdf": "bash scripts/generate-pdf.sh"
+	},
+	"dependencies": {
+		"md-to-pdf": "^5.2.4"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.0",
+		"@types/bun": "latest",
+		"typescript": "^5.7.0"
+	}
 }

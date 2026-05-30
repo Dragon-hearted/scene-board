@@ -4,7 +4,7 @@
  * Transforms video briefs into professional storyboards with:
  * - Dynamic approval-gated workflow
  * - Script, voice script, and scene breakdown generation
- * - NanoBanana Pro prompt generation for visuals
+ * - Composite storyboard sheets via GPT Image 2 (Higgsfield CLI, ImageEngine fallback)
  * - Platform-aware output (aspect ratio, pacing, tone)
  */
 

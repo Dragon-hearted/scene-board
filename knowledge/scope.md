@@ -1,49 +1,51 @@
 # SceneBoard — Scope
 
 ## Description
-SceneBoard is a CLI-driven storyboard creation system that transforms video briefs (scripts, reference videos, voice scripts, or raw ideas) into professional storyboards complete with scripts, timestamps, voice scripts, and NanoBanana Pro prompts for visual generation — leveraging the best available marketing, sales, social media, and ads skills.
+SceneBoard is a CLI-driven storyboard creation system that transforms video briefs (scripts, reference videos, voice scripts, or raw ideas) into a professional **two-phase storyboard deliverable**: a **Phase 1 composite multi-panel storyboard sheet image** (one per ≤15s block, generated via the Higgsfield CLI using GPT Image 2, with ImageEngine HTTP as the automatic fallback) plus a **Phase 2 cinematic video prompt** — leveraging the best available marketing, sales, social media, and ads skills.
 
 ## In Scope
-- Accept flexible brief formats: full script, reference video link with proposed changes, voice script only, or raw idea
-- Fully dynamic approval workflow — for every storyboard component (script, voice script, visual direction, timestamps, etc.):
-  - If provided in the brief → lock into it, no generation needed
-  - If NOT provided → generate multiple options → present for approval
-  - This applies uniformly to all parts: script, voice script, scene breakdowns, visual direction, NanoBanana prompts, etc.
-  - Final step: curate the complete storyboard document from all approved components
-- Script generation using marketing, sales, social media, user engagement, and ads domain skills
-- Professional storyboard output with: scene descriptions, timestamps, script lines, voice script, and visual direction
-- NanoBanana Pro prompt generation for each scene/visual
-- Kling image-to-video prompt generation for each scene — takes NanoBanana Pro stills as input frames and describes motion, camera, and animation direction
-- Reference image guidance alongside prompts (what to look for, what to generate)
-- CLI interface with interactive approval gates
-- Knowledge gathering phase — collect all context needed before generation begins
-- **Client knowledge management** — per-client brand profiles stored at `client/{client}/` with brand positioning, visual direction, and voice guidelines that are auto-loaded when generating storyboards
-- **PDF storyboard generation** — professional tabular PDF output alongside markdown, with project specs header, scene-by-scene table, production notes, and B-roll sections
+- Accept flexible brief formats: full script, reference video link with proposed changes, voice script only, or raw idea.
+- Fully dynamic approval workflow — for every storyboard component (script, voice script, visual direction, scene/panel breakdown, etc.):
+  - If provided in the brief → lock it in, no generation needed.
+  - If NOT provided → generate multiple options → present for approval.
+  - Final step: curate the complete storyboard document from all approved components.
+- Script generation using marketing, sales, social media, user engagement, and ads domain skills.
+- **Composite storyboard sheet generation** — a single multi-panel sheet image per ≤15s block (numbered panels, per-panel timecodes + shot captions baked in), via the **Higgsfield CLI** (`higgsfield generate create gpt_image_2 … --wait --json`) as the primary path, with the **ImageEngine HTTP service as an automatic fallback**.
+- **Variable panel duration** — panels may span more than one second; the only hard rules are per-panel timecodes summing to the sheet's ≤15s window and a panel-count cap (≤ ~15, sized to the grid).
+- **Multi-sheet splitting** — videos longer than 15s split into N sheets (one per ≤15s block) with continuing timecodes.
+- **Reference Sheet stage (Stage 4.5)** — auto-generate **4-view reference sheets** on a neutral grey background for **character and product** subjects, fed as reference images into the composite sheet for identity lock. A storyboard may use multiple character AND product sheets together.
+- **`brand_category`-routed reusability** — clothing → per-storyboard sheets (with garment selection + reuse-vs-new-model prompt); product/service → reusable common sheets.
+- **Phase 2 cinematic video prompt generation** — per-shot timecode, camera, dialogue, SFX, and a fixed closing Audio line, ready for an AI video tool.
+- **Reference-based iterate flow** — change a panel by passing the approved sheet back to Higgsfield as a reference and regenerating the full sheet (same path on the ImageEngine fallback); full-sheet re-runs and Phase 2 regeneration.
+- Style Anchor mechanism for cross-panel/cross-sheet visual consistency.
+- CLI interface with interactive approval gates.
+- Knowledge gathering phase — collect all context (including `brand_category`) before generation begins.
+- **Client knowledge management** — per-client brand profiles at `client/{client}/` (brand positioning, visual direction, voice, `brand_category`), auto-loaded when generating storyboards.
+- **PDF storyboard generation** — professional PDF output alongside markdown, embedding the sheet image(s), the Phase 1 prompt, the panel/timecode table, and the Phase 2 video prompt.
 
 ## Out of Scope
-- Direct visual/image generation (future integration — prompts only for now)
-- Video rendering or editing
-- Audio/voiceover generation
-- Direct integration with NanoBanana Pro API (outputs prompts, does not call the API)
-- Direct integration with Kling API (outputs video prompts, does not call the API)
-- Client-facing web UI (CLI only for v1)
+- Video rendering or editing (outputs the Phase 2 video prompt, does not call a video model).
+- Audio/voiceover generation.
+- The Higgsfield interactive MCP path (CLI is used for scriptable/non-interactive runs).
+- Client-facing web UI (CLI only for v1).
 
 ## Inputs
-- Video brief (one or more of: script, reference video link, voice script, raw idea, proposed changes)
-- Client/brand context (brand voice, target audience, platform, goals)
-- Any reference materials the user provides
+- Video brief (one or more of: script, reference video link, voice script, raw idea, proposed changes).
+- Client/brand context (brand voice, target audience, platform, goals, `brand_category`).
+- Character/product reference images and garment selection (clothing brands).
+- Any reference materials the user provides.
 
 ## Outputs
 - Professional storyboard document containing:
-  - Scene-by-scene breakdown with timestamps
-  - Final approved script
-  - Voice script (narration/dialogue per scene)
-  - Visual direction per scene
-  - NanoBanana Pro prompts per scene for visual generation
-  - Kling video prompts per scene (motion direction, camera motion, negative prompts)
-  - Reference image guidance per scene
+  - Style Anchor + 4-view reference sheets (character + product, when generated).
+  - Final approved script and voice script (when applicable).
+  - **Composite storyboard sheet image(s)** — one per ≤15s block — plus the generating Phase 1 prompt and a panel/timecode table.
+  - **Phase 2 cinematic video prompt**.
+  - Production notes.
+
+## Environment Prerequisite
+- The **Higgsfield CLI** must be installed globally (`npm install -g @higgsfield/cli`) and authenticated once (`higgsfield auth login`). This is an environment prerequisite, not a package.json dependency. When the CLI is unavailable, SceneBoard falls back to the ImageEngine HTTP service automatically.
 
 ## Target Users
-- Internal creative team (storyboard creation for client projects)
-- Client-facing team (presenting storyboards to clients for approval)
-- Future: expanded use cases as the system evolves
+- Internal creative team (storyboard creation for client projects).
+- Client-facing team (presenting storyboards to clients for approval).
