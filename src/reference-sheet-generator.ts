@@ -378,6 +378,7 @@ export async function generateReferenceSheets(
 				imageUrl: image.imageUrl,
 				model: image.model,
 				provider: image.provider,
+				...(image.imageId && { imageId: image.imageId }),
 				appearanceCount: subject.appearanceCount ?? 0,
 			};
 		}),

@@ -194,26 +194,61 @@ export function formatSeconds(totalSeconds: number): string {
 export function distributeShotDurations(panels: PanelInput[], durationSeconds: number): number[] {
 	if (panels.length === 0) return [];
 
+	const EPSILON = 1e-9;
+
+	// Fail fast on a non-positive target — a zero/negative timeline cannot be
+	// distributed into positive per-shot durations.
+	if (!(durationSeconds > 0)) {
+		throw new RangeError(
+			`distributeShotDurations: durationSeconds must be > 0 (received ${durationSeconds}).`,
+		);
+	}
+
 	const explicit = panels.map((p) =>
 		typeof p.durationSeconds === "number" && p.durationSeconds > 0 ? p.durationSeconds : null,
 	);
 	const explicitSum = explicit.reduce<number>((acc, d) => acc + (d ?? 0), 0);
 	const missingCount = explicit.filter((d) => d === null).length;
 
+	// Explicit per-panel durations must not overspec the timeline; otherwise the
+	// remainder (and the drift correction below) can drive shots negative.
+	if (explicitSum > durationSeconds + EPSILON) {
+		throw new RangeError(
+			`distributeShotDurations: explicit panel durations sum to ${explicitSum}s, ` +
+				`which exceeds the target duration of ${durationSeconds}s.`,
+		);
+	}
+
 	let durations: number[];
 	if (missingCount === 0) {
 		durations = explicit as number[];
 	} else {
 		const remaining = durationSeconds - explicitSum;
-		const perMissing = remaining > 0 ? remaining / missingCount : durationSeconds / panels.length;
+		// Every unspecified panel needs a positive slice; if explicit durations
+		// have already consumed the whole timeline there is nothing left to give.
+		if (remaining <= EPSILON) {
+			throw new RangeError(
+				`distributeShotDurations: explicit durations (${explicitSum}s) leave no time for ` +
+					`${missingCount} unspecified panel(s) within ${durationSeconds}s.`,
+			);
+		}
+		const perMissing = remaining / missingCount;
 		durations = explicit.map((d) => (d === null ? perMissing : d));
 	}
 
-	// Force the sum to equal durationSeconds exactly.
+	// Force the sum to equal durationSeconds exactly, absorbing rounding drift
+	// into the last shot — but never let that correction drive it to <= 0.
 	const sum = durations.reduce((acc, d) => acc + d, 0);
 	const drift = durationSeconds - sum;
-	if (Math.abs(drift) > 1e-9) {
-		durations[durations.length - 1] += drift;
+	if (Math.abs(drift) > EPSILON) {
+		const lastIndex = durations.length - 1;
+		const corrected = durations[lastIndex] + drift;
+		if (corrected <= EPSILON) {
+			throw new RangeError(
+				`distributeShotDurations: rounding drift drives the last shot to ${corrected}s (<= 0).`,
+			);
+		}
+		durations[lastIndex] = corrected;
 	}
 	return durations;
 }

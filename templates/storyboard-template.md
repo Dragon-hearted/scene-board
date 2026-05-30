@@ -15,7 +15,8 @@ output_dir: "client/{{client-slug}}/storyboards/{{project-slug}}"
 
 # {{project-name}}
 
-{{subtitle — e.g., "15s Product Ad — Composite Storyboard Sheet + Cinematic Video Prompt"}}
+{{subtitle}}
+<!-- Example: "15s Product Ad — Composite Storyboard Sheet + Cinematic Video Prompt" -->
 
 ---
 

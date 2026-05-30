@@ -347,6 +347,15 @@ export function splitIntoSheets(
 	let windowStart = placed[0]?.timecode.startSeconds ?? 0;
 
 	for (const beat of placed) {
+		// A single beat longer than the sheet window can never fit on any sheet;
+		// reject it rather than emitting a sheet that violates the ≤15s invariant.
+		const beatDuration = beat.timecode.endSeconds - beat.timecode.startSeconds;
+		if (beatDuration > MAX_SHEET_SECONDS + EPSILON) {
+			throw new RangeError(
+				`Beat at ${beat.timecode.startSeconds}s spans ${beatDuration.toFixed(2)}s, ` +
+					`exceeding the ${MAX_SHEET_SECONDS}s sheet window — it cannot fit on any sheet.`,
+			);
+		}
 		const wouldOverflowTime = beat.timecode.endSeconds - windowStart > MAX_SHEET_SECONDS + EPSILON;
 		const wouldOverflowCount = current.length >= panelCap;
 		if (current.length > 0 && (wouldOverflowTime || wouldOverflowCount)) {
@@ -583,6 +592,14 @@ export function composeStoryboardSheetPrompt(input: StoryboardSheetPromptInput):
 	const windowSeconds = input.durationSeconds ?? MAX_SHEET_SECONDS;
 	const panelCap = clampPanelCap(input.panelCap ?? DEFAULT_PANEL_CAP);
 
+	// A single sheet must fit inside the ≤15s window; a caller-supplied window
+	// larger than that would yield a self-contradictory sheet.
+	if (windowSeconds > MAX_SHEET_SECONDS + EPSILON) {
+		throw new RangeError(
+			`composeStoryboardSheetPrompt: durationSeconds ${windowSeconds}s exceeds the ${MAX_SHEET_SECONDS}s sheet window; split with splitIntoSheets first`,
+		);
+	}
+
 	if (input.beats.length > panelCap) {
 		throw new RangeError(
 			`composeStoryboardSheetPrompt: ${input.beats.length} panels exceeds cap ${panelCap}; split with splitIntoSheets first`,
@@ -593,6 +610,16 @@ export function composeStoryboardSheetPrompt(input: StoryboardSheetPromptInput):
 		windowSeconds,
 		startSeconds: input.startSeconds ?? 0,
 	});
+
+	// Reject placements whose timing cannot fit the declared window (per-panel
+	// durations summing past the window, non-positive durations, panel overflow).
+	const validation = validateSheet(placed, { panelCap, maxSeconds: windowSeconds });
+	if (!validation.valid) {
+		throw new RangeError(
+			`composeStoryboardSheetPrompt: invalid sheet timing — ${validation.errors.join("; ")}`,
+		);
+	}
+
 	const grid = gridForPanelCount(placed.length, aspect);
 
 	const sections = [

@@ -70,6 +70,12 @@ export interface ProviderImageResult {
 	prompt: string;
 	/** Echoed id. */
 	id?: string;
+	/**
+	 * Provider-assigned image id (ImageEngine gallery id) when available, so
+	 * callers can persist it and chain it as a `referenceImageIds` ref later.
+	 * Undefined for Higgsfield (which returns a downloaded local path instead).
+	 */
+	imageId?: string;
 }
 
 const FALLBACK_PRIMARY_MODEL = "gpt-image-2" as const;
@@ -123,6 +129,7 @@ export async function generateImage(
 			resolution: (req.resolution ?? "2k") as HiggsfieldResolution,
 			quality: (req.quality ?? "high") as HiggsfieldQuality,
 			referenceImagePaths: req.referenceImagePaths,
+			referenceImageIds: req.referenceImageIds,
 			outPath: req.outPath,
 		});
 		logProvider("higgsfield", `${result.model} → ${result.localPath}`);
@@ -183,5 +190,6 @@ async function generateViaImageEngine(
 		provider: "image-engine",
 		prompt: req.prompt,
 		id: req.id,
+		...(result.id && { imageId: result.id }),
 	};
 }

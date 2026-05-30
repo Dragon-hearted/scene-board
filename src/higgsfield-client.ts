@@ -39,6 +39,12 @@ export interface HiggsfieldGenerateRequest {
 	 * `--image` flag (role `image`). Local paths auto-upload. Up to ~8.
 	 */
 	referenceImagePaths?: string[];
+	/**
+	 * Gallery / previously-uploaded media ids to reuse as references. Each is
+	 * serialized as an additional repeated `--image` flag (passed through
+	 * unchanged) alongside `referenceImagePaths`.
+	 */
+	referenceImageIds?: string[];
 	/** Absolute/relative path the downloaded image is written to. */
 	outPath: string;
 	/** Wait timeout passed to `--wait-timeout` (default 10m). */
@@ -256,6 +262,9 @@ export function buildGenerateArgs(req: HiggsfieldGenerateRequest): string[] {
 	for (const ref of req.referenceImagePaths ?? []) {
 		args.push("--image", ref);
 	}
+	for (const id of req.referenceImageIds ?? []) {
+		args.push("--image", id);
+	}
 	if (req.waitTimeout) args.push("--wait-timeout", req.waitTimeout);
 	if (req.waitInterval) args.push("--wait-interval", req.waitInterval);
 	args.push("--wait", "--json");
@@ -294,11 +303,17 @@ export async function generateImage(
 		throw classifyFailure(outcome, "generate create gpt_image_2");
 	}
 
-	// Auth/timeout hints can appear even on exit 0 in some CLI versions.
+	// Auth/timeout hints can appear even on exit 0 in some CLI versions, so we
+	// classify them explicitly before attempting to parse the JSON payload.
 	const haystack = `${outcome.stdout}\n${outcome.stderr}`.toLowerCase();
 	if (AUTH_HINTS.some((h) => haystack.includes(h))) {
 		throw new HiggsfieldAuthError(
 			`Higgsfield reported an auth problem. Run \`higgsfield auth login\`. ${outcome.stderr.trim()}`,
+		);
+	}
+	if (TIMEOUT_HINTS.some((h) => haystack.includes(h))) {
+		throw new HiggsfieldTimeoutError(
+			`Higgsfield generation timed out (generate create gpt_image_2). ${outcome.stderr.trim()}`,
 		);
 	}
 
@@ -324,15 +339,41 @@ export async function generateImage(
 	return { localPath: req.outPath, imageUrl, model: MODEL };
 }
 
-/** Download a remote URL to a local path, creating parent dirs as needed. */
-export async function downloadToFile(url: string, outPath: string): Promise<void> {
-	const res = await fetch(url);
-	if (!res.ok) {
-		throw new HiggsfieldCliError(
-			`Failed to download generated image (${res.status} ${res.statusText}) from ${url}`,
-		);
+/** Default ceiling for the media download (ms). Overridable per call. */
+const DOWNLOAD_TIMEOUT_MS = Number(process.env.HIGGSFIELD_DOWNLOAD_TIMEOUT_MS) || 30_000;
+
+/**
+ * Download a remote URL to a local path, creating parent dirs as needed.
+ *
+ * The request (and its body read) is bounded by an AbortController so a stalled
+ * connection cannot hang the generation pipeline indefinitely — on timeout we
+ * surface a `HiggsfieldTimeoutError` so the provider can fall back.
+ */
+export async function downloadToFile(
+	url: string,
+	outPath: string,
+	timeoutMs: number = DOWNLOAD_TIMEOUT_MS,
+): Promise<void> {
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), timeoutMs);
+	try {
+		const res = await fetch(url, { signal: controller.signal });
+		if (!res.ok) {
+			throw new HiggsfieldCliError(
+				`Failed to download generated image (${res.status} ${res.statusText}) from ${url}`,
+			);
+		}
+		const buffer = Buffer.from(await res.arrayBuffer());
+		await mkdir(dirname(outPath), { recursive: true });
+		await writeFile(outPath, buffer);
+	} catch (err) {
+		if (err instanceof Error && err.name === "AbortError") {
+			throw new HiggsfieldTimeoutError(
+				`Timed out after ${timeoutMs}ms downloading generated image from ${url}.`,
+			);
+		}
+		throw err;
+	} finally {
+		clearTimeout(timer);
 	}
-	await mkdir(dirname(outPath), { recursive: true });
-	const buffer = Buffer.from(await res.arrayBuffer());
-	await writeFile(outPath, buffer);
 }

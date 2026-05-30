@@ -1,8 +1,17 @@
 /* SceneBoard PDF Storyboard Styles */
 /* Used by md-to-pdf for professional storyboard rendering */
 
+/*
+ * TODO(pdf): the legacy `page-break-*` properties below are intentionally kept.
+ * Do NOT migrate to the modern `break-*` equivalents until the md-to-pdf smoke
+ * test reliably emits an output PDF we can diff: re-run it in CI (or locally
+ * with explicit logging instead of `tee`), confirm /tmp/test-break.pdf is
+ * actually produced, verify `page-break-*` and `break-*` renders are
+ * equivalent, and only then perform the global replacement.
+ */
+
 @page {
-	size: A4;
+	size: a4;
 	margin: 20mm;
 }
 

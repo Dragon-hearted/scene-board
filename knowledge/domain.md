@@ -160,7 +160,7 @@ Determine the best marketing/engagement framework by: analyzing the brief (ad / 
 Per-client brand knowledge is loaded automatically when generating storyboards.
 
 ### Directory Structure
-```
+```plaintext
 client/
   {client-slug}/
     brand.md              # Compiled brand profile (quick-reference) — includes brand_category

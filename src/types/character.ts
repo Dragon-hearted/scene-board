@@ -19,7 +19,7 @@ export interface Character {
 	slug: string;
 	name: string;
 	lockedDescription: string;
-	/** Composite 6-panel reference sheet; undefined when generation failed. */
+	/** Composite 4-view reference sheet; undefined when generation failed. */
 	sheet?: CharacterView;
 	sourceRefImageIds?: string[];
 	tags?: string[];

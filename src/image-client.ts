@@ -68,6 +68,9 @@ export interface BudgetStatus {
 
 const BASE_URL = process.env.IMAGE_ENGINE_URL || "http://localhost:3002";
 
+/** Default ceiling for the generate POST (ms). Overridable via env. */
+const GENERATE_TIMEOUT_MS = Number(process.env.IMAGE_ENGINE_TIMEOUT_MS) || 120_000;
+
 async function handleError(res: Response): Promise<never> {
 	const err = await res.json().catch(() => ({ error: res.statusText }));
 	throw new Error(
@@ -76,13 +79,29 @@ async function handleError(res: Response): Promise<never> {
 }
 
 export async function generateSingle(req: GenerationRequest): Promise<GenerationResult> {
-	const res = await fetch(`${BASE_URL}/api/generate`, {
-		method: "POST",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify(req),
-	});
-	if (!res.ok) await handleError(res);
-	return res.json() as Promise<GenerationResult>;
+	// Bound the POST so a hung ImageEngine cannot block the provider's fallback
+	// chain (e.g. gpt-image-2 → gpt-image-1.5) indefinitely.
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), GENERATE_TIMEOUT_MS);
+	try {
+		const res = await fetch(`${BASE_URL}/api/generate`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(req),
+			signal: controller.signal,
+		});
+		if (!res.ok) await handleError(res);
+		return (await res.json()) as GenerationResult;
+	} catch (err) {
+		if (err instanceof Error && err.name === "AbortError") {
+			throw new Error(
+				`ImageEngine generate request timed out after ${GENERATE_TIMEOUT_MS}ms (${BASE_URL}/api/generate).`,
+			);
+		}
+		throw err;
+	} finally {
+		clearTimeout(timer);
+	}
 }
 
 export async function generateBatch(req: BatchRequest): Promise<BatchResult> {

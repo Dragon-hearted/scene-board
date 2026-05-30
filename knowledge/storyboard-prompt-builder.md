@@ -34,7 +34,7 @@ You need three things. Collect whatever's missing in a single message:
 - **Panel count** — defaults to 15 (the standard storyboard sheet), but can be 9, 12, or 20 depending on story complexity
 - **Duration** — defaults to 15 seconds, but can be adjusted (30s, 60s, etc.)
 - **Aspect ratio** — defaults to 16:9, but can be 9:16 (vertical), 1:1, or 4:3
-- **Target model** — Nano Banana Pro or GPT Image 2. Defaults to Nano Banana Pro. Prompt structure is similar but GPT Image 2 benefits from slightly more explicit layout instructions.
+- **Target model** — GPT Image 2 or Nano Banana Pro. Defaults to **GPT Image 2** (SceneBoard v2's primary transport via the Higgsfield CLI / ImageEngine); Nano Banana Pro is an alternative only when explicitly requested. Prompt structure is similar, but GPT Image 2 benefits from slightly more explicit layout instructions.
 
 ### Step 2 — Analyse character references
 

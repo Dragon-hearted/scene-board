@@ -49,6 +49,28 @@ describe("distributeShotDurations", () => {
 	test("returns an empty array for no panels", () => {
 		expect(distributeShotDurations([], 15)).toEqual([]);
 	});
+
+	test("never emits negative or zero shot durations", () => {
+		const d = distributeShotDurations([panel({ durationSeconds: 4 }), panel(), panel()], 15);
+		for (const x of d) expect(x).toBeGreaterThan(0);
+	});
+
+	test("throws when durationSeconds is not positive", () => {
+		expect(() => distributeShotDurations(panels(3), 0)).toThrow(RangeError);
+		expect(() => distributeShotDurations(panels(3), -5)).toThrow(RangeError);
+	});
+
+	test("throws when explicit durations overspec the timeline", () => {
+		expect(() =>
+			distributeShotDurations([panel({ durationSeconds: 10 }), panel({ durationSeconds: 10 })], 15),
+		).toThrow(RangeError);
+	});
+
+	test("throws when explicit durations leave no time for unspecified panels", () => {
+		expect(() => distributeShotDurations([panel({ durationSeconds: 15 }), panel()], 15)).toThrow(
+			RangeError,
+		);
+	});
 });
 
 describe("toTimedShots", () => {
