@@ -199,6 +199,8 @@ This is **not** a secret and **not** an env var. It is intentionally committed t
 
 The Aporto skill IDs (67 = GPT Image 2 2K, 68 = GPT Image 2 1K) were picked once via `aporto discover` during integration and are pinned in `src/aporto.ts` as `APORTO_SKILLS`. End users do not need to run discovery at runtime.
 
+Aporto's pricing model is usage-based and can be cheaper than paying each provider directly, depending on the skill and current Aporto program terms. For the latest discount and referral details (eligible models, qualifying spend, current promotional offers for new accounts), check the Aporto Dashboard before quoting numbers to end users — terms change.
+
 ---
 
 ## 💻 Development
