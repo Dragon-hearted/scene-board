@@ -4,7 +4,7 @@
  * Transforms video briefs into professional storyboards with:
  * - Dynamic approval-gated workflow
  * - Script, voice script, and scene breakdown generation
- * - Composite storyboard sheets via GPT Image 2 (Higgsfield CLI, ImageEngine fallback)
+ * - Composite storyboard sheets via GPT Image 2 (ImageEngine)
  * - Platform-aware output (aspect ratio, pacing, tone)
  */
 

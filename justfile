@@ -35,7 +35,3 @@ storyboard *ARGS:
   @echo 'scene-board is skill-driven — invoke the scene-board skill (see .claude/skills/scene-board/SKILL.md).' >&2
   @echo 'There is no standalone CLI; src/orchestrate.ts exports orchestrateStoryboard() as a library entry only.' >&2
   @exit 1
-
-# Check Higgsfield CLI auth status (primary image transport; falls back to ImageEngine when unauthenticated)
-higgsfield-auth:
-  higgsfield account status

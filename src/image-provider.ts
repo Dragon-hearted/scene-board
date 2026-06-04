@@ -2,24 +2,16 @@
  * Image provider façade — the SINGLE entry point both the composite-sheet
  * generator and the reference-sheet generator use to produce an image.
  *
- * Strategy:
- *   1. PRIMARY  — Higgsfield CLI (gpt_image_2) → downloads image to outPath.
- *   2. FALLBACK — ImageEngine HTTP client (gpt-image-2, then gpt-image-1.5 on
- *      its own failure). Reuses src/image-client.ts UNCHANGED as transport.
- *
- * Any Higgsfield failure (auth, timeout, CLI, no-URL) silently falls back to
- * ImageEngine so the pipeline keeps working when the CLI is logged out or down.
- * The provider logs which transport served each request.
+ * SceneBoard talks ONLY to ImageEngine over HTTP (src/image-client.ts). It omits
+ * `model` so ImageEngine serves its default GPT Image 2 provider (with
+ * ImageEngine's own gemini fallback). The result image is downloaded from the
+ * gallery and written to the caller's `outPath`, and the gallery `imageId` is
+ * returned so callers can chain it as a `referenceImageIds` reference later.
  */
 
-import {
-	type HiggsfieldAspectRatio,
-	type HiggsfieldQuality,
-	type HiggsfieldResolution,
-	checkAuth as higgsfieldCheckAuth,
-	generateImage as higgsfieldGenerate,
-} from "./higgsfield-client";
-import { generateSingle } from "./image-client";
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
+import { generateSingle, getImage } from "./image-client";
 
 // ─── Provider-facing request/response ───
 
@@ -30,7 +22,7 @@ export type ProviderQuality = "low" | "medium" | "high";
 
 export type ProviderResolution = "1k" | "2k" | "4k";
 
-export type ImageProviderName = "higgsfield" | "image-engine";
+export type ImageProviderName = "image-engine";
 
 export interface ProviderImageRequest {
 	/** Full prompt body. */
@@ -41,25 +33,19 @@ export interface ProviderImageRequest {
 	resolution?: ProviderResolution;
 	/** Quality. Defaults to high. */
 	quality?: ProviderQuality;
-	/**
-	 * Reference inputs. Higgsfield consumes `referenceImagePaths` (local paths
-	 * or ids via `--image`). The ImageEngine fallback consumes
-	 * `referenceImageIds` (gallery ids). Pass whichever the caller has; both
-	 * may be set and each transport uses the one it understands.
-	 */
-	referenceImagePaths?: string[];
+	/** Gallery reference-image ids (ImageEngine resolves these against the images table). */
 	referenceImageIds?: string[];
-	/** Where the Higgsfield transport writes the downloaded image. */
+	/** Where the downloaded image is written. */
 	outPath: string;
 	/** Optional identifier echoed back (e.g. character slug, sheet index). */
 	id?: string;
-	/** Optional system instruction — honored only by the ImageEngine fallback. */
+	/** Optional system instruction forwarded to ImageEngine. */
 	systemInstruction?: string;
 }
 
 export interface ProviderImageResult {
-	/** Local path when served by Higgsfield; may be undefined for ImageEngine. */
-	localPath?: string;
+	/** Local path the downloaded image was written to. */
+	localPath: string;
 	/** Remote URL (always present). */
 	imageUrl: string;
 	/** Model id that served the request. */
@@ -70,35 +56,8 @@ export interface ProviderImageResult {
 	prompt: string;
 	/** Echoed id. */
 	id?: string;
-	/**
-	 * Provider-assigned image id (ImageEngine gallery id) when available, so
-	 * callers can persist it and chain it as a `referenceImageIds` ref later.
-	 * Undefined for Higgsfield (which returns a downloaded local path instead).
-	 */
-	imageId?: string;
-}
-
-const FALLBACK_PRIMARY_MODEL = "gpt-image-2" as const;
-const FALLBACK_SECONDARY_MODEL = "gpt-image-1.5" as const;
-
-/**
- * Map a SceneBoard aspect ratio to the Higgsfield CLI enum. Higgsfield's
- * enum covers the same values SceneBoard uses for sheets; pass through and
- * default to 16:9.
- */
-export function toHiggsfieldAspect(ar?: ProviderAspectRatio): HiggsfieldAspectRatio {
-	switch (ar) {
-		case "9:16":
-		case "1:1":
-		case "4:3":
-		case "3:4":
-		case "3:2":
-		case "2:3":
-		case "16:9":
-			return ar;
-		default:
-			return "16:9";
-	}
+	/** ImageEngine gallery id — persist it to chain as a `referenceImageIds` ref later. */
+	imageId: string;
 }
 
 /** Simple structured logger so operators can see which transport served. */
@@ -107,89 +66,33 @@ function logProvider(provider: ImageProviderName, detail: string): void {
 }
 
 /**
- * Generate an image, preferring Higgsfield and falling back to ImageEngine.
+ * Generate an image via ImageEngine and download it to `outPath`.
  *
- * @param req            normalized provider request
- * @param opts.skipAuthCheck  skip the cheap `checkAuth()` probe (tests).
+ * No `model` is passed, so ImageEngine serves its default GPT Image 2 provider.
  */
-export async function generateImage(
-	req: ProviderImageRequest,
-	opts: { skipAuthCheck?: boolean } = {},
-): Promise<ProviderImageResult> {
-	// 1) Try Higgsfield (primary) unless we already know it's unauthenticated.
-	let higgsfieldErr: unknown;
-	try {
-		const authed = opts.skipAuthCheck ? true : await higgsfieldCheckAuth();
-		if (!authed) {
-			throw new Error("Higgsfield not authenticated (checkAuth failed)");
-		}
-		const result = await higgsfieldGenerate({
-			prompt: req.prompt,
-			aspectRatio: toHiggsfieldAspect(req.aspectRatio),
-			resolution: (req.resolution ?? "2k") as HiggsfieldResolution,
-			quality: (req.quality ?? "high") as HiggsfieldQuality,
-			referenceImagePaths: req.referenceImagePaths,
-			referenceImageIds: req.referenceImageIds,
-			outPath: req.outPath,
-		});
-		logProvider("higgsfield", `${result.model} → ${result.localPath}`);
-		return {
-			localPath: result.localPath,
-			imageUrl: result.imageUrl,
-			model: result.model,
-			provider: "higgsfield",
-			prompt: req.prompt,
-			id: req.id,
-		};
-	} catch (err) {
-		higgsfieldErr = err;
-		const message = err instanceof Error ? err.message : String(err);
-		console.error(`[image-provider] Higgsfield failed, falling back to ImageEngine — ${message}`);
-	}
-
-	// 2) Fallback — ImageEngine HTTP (gpt-image-2 → gpt-image-1.5).
-	try {
-		return await generateViaImageEngine(req, FALLBACK_PRIMARY_MODEL);
-	} catch (primaryErr) {
-		const primaryMsg = primaryErr instanceof Error ? primaryErr.message : String(primaryErr);
-		try {
-			return await generateViaImageEngine(req, FALLBACK_SECONDARY_MODEL);
-		} catch (secondaryErr) {
-			const secondaryMsg =
-				secondaryErr instanceof Error ? secondaryErr.message : String(secondaryErr);
-			const higgsfieldMsg =
-				higgsfieldErr instanceof Error ? higgsfieldErr.message : String(higgsfieldErr);
-			throw new Error(
-				`All image providers failed. Higgsfield: ${higgsfieldMsg} | ` +
-					`ImageEngine ${FALLBACK_PRIMARY_MODEL}: ${primaryMsg} | ` +
-					`ImageEngine ${FALLBACK_SECONDARY_MODEL}: ${secondaryMsg}`,
-			);
-		}
-	}
-}
-
-async function generateViaImageEngine(
-	req: ProviderImageRequest,
-	model: typeof FALLBACK_PRIMARY_MODEL | typeof FALLBACK_SECONDARY_MODEL,
-): Promise<ProviderImageResult> {
+export async function generateImage(req: ProviderImageRequest): Promise<ProviderImageResult> {
 	const result = await generateSingle({
 		prompt: req.prompt,
-		model,
 		aspectRatio: req.aspectRatio ?? "16:9",
 		forceImage: true,
 		openaiQuality: req.quality ?? "high",
-		...(req.referenceImageIds &&
-			req.referenceImageIds.length > 0 && { referenceImageIds: req.referenceImageIds }),
-		...(req.systemInstruction && { systemInstruction: req.systemInstruction }),
-		...(req.id && { sceneId: req.id }),
+		...(req.referenceImageIds?.length ? { referenceImageIds: req.referenceImageIds } : {}),
+		...(req.systemInstruction ? { systemInstruction: req.systemInstruction } : {}),
+		...(req.id ? { sceneId: req.id } : {}),
 	});
-	logProvider("image-engine", `${result.model} → ${result.imageUrl}`);
+
+	const buf = await getImage(result.id);
+	await mkdir(dirname(req.outPath), { recursive: true });
+	await writeFile(req.outPath, buf);
+
+	logProvider("image-engine", `${result.model} → ${req.outPath}`);
 	return {
+		localPath: req.outPath,
 		imageUrl: result.imageUrl,
 		model: result.model,
 		provider: "image-engine",
 		prompt: req.prompt,
 		id: req.id,
-		...(result.id && { imageId: result.id }),
+		imageId: result.id,
 	};
 }

@@ -9,7 +9,7 @@ sheets: "{{sheet-count}}"
 panels: "{{panel-count}}"
 date: "{{date}}"
 status: "draft"
-image_provider: "higgsfield (gpt_image_2) — image-engine fallback"
+image_provider: "image-engine (GPT Image 2 default provider)"
 output_dir: "client/{{client-slug}}/storyboards/{{project-slug}}"
 ---
 
@@ -33,7 +33,7 @@ output_dir: "client/{{client-slug}}/storyboards/{{project-slug}}"
 | **Model/Talent** | {{model-description}} |
 | **Setting** | {{setting-description}} |
 | **Audio** | {{audio-description}} |
-| **Image Provider** | Higgsfield (GPT Image 2) — ImageEngine fallback |
+| **Image Provider** | ImageEngine (GPT Image 2 default provider) |
 
 ---
 
@@ -59,7 +59,7 @@ output_dir: "client/{{client-slug}}/storyboards/{{project-slug}}"
 | **Locked Description** | {{locked-description}} |
 | **Garments** (clothing only) | {{selected-garments-or-N/A}} |
 | **Appears in Panels** | {{panel-list}} |
-| **Provider / Model** | {{higgsfield \| image-engine}} / gpt_image_2 |
+| **Provider / Model** | image-engine / gpt-image-2 |
 
 {{END FOR EACH}}
 

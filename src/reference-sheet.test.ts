@@ -16,7 +16,6 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-	HIGGSFIELD_REF_CAP,
 	IMAGE_ENGINE_REF_CAP,
 	type ReferenceSheet,
 	type ReferenceSubject,
@@ -35,9 +34,6 @@ function charSubject(over: Partial<ReferenceSubject> = {}): ReferenceSubject {
 		type: "character",
 		lockedDescription: over.lockedDescription ?? "a freckled 9-year-old inventor in brass goggles",
 		...(over.garments !== undefined && { garments: over.garments }),
-		...(over.referenceImagePaths !== undefined && {
-			referenceImagePaths: over.referenceImagePaths,
-		}),
 		...(over.reuseModelIdentity !== undefined && { reuseModelIdentity: over.reuseModelIdentity }),
 		...(over.appearanceCount !== undefined && { appearanceCount: over.appearanceCount }),
 	};
@@ -233,46 +229,37 @@ describe("resolveSheetReferences", () => {
 			prompt: "p",
 			imageUrl: over.imageUrl ?? "https://x/img.png",
 			model: "gpt_image_2",
-			provider: over.provider ?? "higgsfield",
+			provider: over.provider ?? "image-engine",
 			appearanceCount: over.appearanceCount ?? 0,
 			...(over.localPath !== undefined && { localPath: over.localPath }),
 			...(over.imageId !== undefined && { imageId: over.imageId }),
 		};
 	}
 
-	test("collects local paths and image ids from all sheets", () => {
+	test("collects gallery image ids from all sheets", () => {
 		const refs = resolveSheetReferences([
 			sheet({ slug: "a", localPath: "/a.png", imageId: "id-a" }),
 			sheet({ slug: "b", localPath: "/b.png", imageId: "id-b" }),
 		]);
-		expect(refs.referenceImagePaths).toEqual(["/a.png", "/b.png"]);
 		expect(refs.referenceImageIds).toEqual(["id-a", "id-b"]);
 	});
 
 	test("prioritises higher appearanceCount, then input order on ties", () => {
 		const refs = resolveSheetReferences([
-			sheet({ slug: "low", localPath: "/low.png", appearanceCount: 1 }),
-			sheet({ slug: "high", localPath: "/high.png", appearanceCount: 9 }),
-			sheet({ slug: "mid", localPath: "/mid.png", appearanceCount: 5 }),
+			sheet({ slug: "low", imageId: "id-low", appearanceCount: 1 }),
+			sheet({ slug: "high", imageId: "id-high", appearanceCount: 9 }),
+			sheet({ slug: "mid", imageId: "id-mid", appearanceCount: 5 }),
 		]);
-		expect(refs.referenceImagePaths).toEqual(["/high.png", "/mid.png", "/low.png"]);
+		expect(refs.referenceImageIds).toEqual(["id-high", "id-mid", "id-low"]);
 	});
 
-	test("caps Higgsfield paths at the provider limit, prioritising by appearance", () => {
-		const many = Array.from({ length: HIGGSFIELD_REF_CAP + 4 }, (_, i) =>
-			sheet({ slug: `s${i}`, localPath: `/s${i}.png`, appearanceCount: i }),
-		);
-		const refs = resolveSheetReferences(many);
-		expect(refs.referenceImagePaths).toHaveLength(HIGGSFIELD_REF_CAP);
-		// Highest appearanceCount wins the first slot.
-		expect(refs.referenceImagePaths[0]).toBe(`/s${many.length - 1}.png`);
-	});
-
-	test("caps ImageEngine ids at its (smaller) limit", () => {
+	test("caps ImageEngine ids at its limit, prioritising by appearance", () => {
 		const many = Array.from({ length: IMAGE_ENGINE_REF_CAP + 3 }, (_, i) =>
 			sheet({ slug: `s${i}`, imageId: `id-${i}`, appearanceCount: i }),
 		);
 		const refs = resolveSheetReferences(many);
 		expect(refs.referenceImageIds).toHaveLength(IMAGE_ENGINE_REF_CAP);
+		// Highest appearanceCount wins the first slot.
+		expect(refs.referenceImageIds[0]).toBe(`id-${many.length - 1}`);
 	});
 });

@@ -1,7 +1,7 @@
 ---
 name: storyboard-prompt-builder
 description: >
-  Generate two-phase storyboard prompts from character references and a story overview — first an image prompt that produces a professional multi-panel storyboard sheet, then a cinematic video prompt that expands each panel into directed animation/live-action beats. Use this skill whenever the user wants a storyboard, a storyboard sheet, a visual story breakdown, a panel-by-panel scene layout, or asks for a "storyboard prompt." Also trigger when the user says "storyboard for," "break this story into panels," "storyboard sheet," "visual story prompt," "panel layout," or uploads character references and asks for a storyboard. Trigger when the user mentions storyboard in combination with any image or video generation tool (Nano Banana Pro, GPT Image, Midjourney, DALL-E, Seedance, Kling, Sora, Veo, Runway, Luma, Hailuo, Wan, Higgsfield, Flux). Also trigger if the user asks to turn a story idea into a visual production document or shot sheet. Works for any visual style — 3D animation, live-action, anime, 2D animation, stop-motion, editorial, comic book, or any other aesthetic.
+  Generate two-phase storyboard prompts from character references and a story overview — first an image prompt that produces a professional multi-panel storyboard sheet, then a cinematic video prompt that expands each panel into directed animation/live-action beats. Use this skill whenever the user wants a storyboard, a storyboard sheet, a visual story breakdown, a panel-by-panel scene layout, or asks for a "storyboard prompt." Also trigger when the user says "storyboard for," "break this story into panels," "storyboard sheet," "visual story prompt," "panel layout," or uploads character references and asks for a storyboard. Trigger when the user mentions storyboard in combination with any image or video generation tool (Nano Banana Pro, GPT Image, Midjourney, DALL-E, Seedance, Kling, Sora, Veo, Runway, Luma, Hailuo, Wan, Flux). Also trigger if the user asks to turn a story idea into a visual production document or shot sheet. Works for any visual style — 3D animation, live-action, anime, 2D animation, stop-motion, editorial, comic book, or any other aesthetic.
 ---
 
 # Storyboard Prompt Builder
@@ -34,7 +34,7 @@ You need three things. Collect whatever's missing in a single message:
 - **Panel count** — defaults to 15 (the standard storyboard sheet), but can be 9, 12, or 20 depending on story complexity
 - **Duration** — defaults to 15 seconds, but can be adjusted (30s, 60s, etc.)
 - **Aspect ratio** — defaults to 16:9, but can be 9:16 (vertical), 1:1, or 4:3
-- **Target model** — GPT Image 2 or Nano Banana Pro. Defaults to **GPT Image 2** (SceneBoard v2's primary transport via the Higgsfield CLI / ImageEngine); Nano Banana Pro is an alternative only when explicitly requested. Prompt structure is similar, but GPT Image 2 benefits from slightly more explicit layout instructions.
+- **Target model** — GPT Image 2 or Nano Banana Pro. Defaults to **GPT Image 2** (SceneBoard v2 generates via ImageEngine, whose default provider is GPT Image 2); Nano Banana Pro is an alternative only when explicitly requested. Prompt structure is similar, but GPT Image 2 benefits from slightly more explicit layout instructions.
 
 ### Step 2 — Analyse character references
 

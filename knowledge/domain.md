@@ -11,36 +11,38 @@ The defining shift from the legacy design: SceneBoard no longer renders **"1 sce
 3. **Dynamic Generation & Approval Loop** — For each missing component, generate multiple options using the best available marketing/sales/social/ads skill frameworks, present for approval, and lock in once approved. Components include: script, voice script, scene breakdown, visual direction, etc.
 4. **Scene Breakdown** — Break the approved script into beats/panels. Each panel is a numbered cell on the composite sheet with its own timecode range and shot caption.
 5. **Visual Direction** — Lock a Style Anchor, then determine the best visuals per panel that reflect the story and read clearly to the audience.
-6. **Reference Sheet stage (Stage 4.5, optional)** — Generate **4-view reference sheets** for **character and/or product** subjects on a neutral grey background (Higgsfield GPT Image 2 → ImageEngine fallback). These are fed as reference images into the composite sheet for identity lock.
-7. **Phase 1 — Composite Storyboard Sheet** — Assemble a single continuous GPT Image 2 prompt (sections A–H) and generate one composite multi-panel sheet image per ≤15s block via the Higgsfield CLI (ImageEngine fallback), passing all approved reference sheets as reference images.
+6. **Reference Sheet stage (Stage 4.5, optional)** — Generate **4-view reference sheets** for **character and/or product** subjects on a neutral grey background (via ImageEngine, GPT Image 2). These are fed as reference images into the composite sheet for identity lock.
+7. **Phase 1 — Composite Storyboard Sheet** — Assemble a single continuous GPT Image 2 prompt (sections A–H) and generate one composite multi-panel sheet image per ≤15s block via ImageEngine, passing all approved reference sheets as reference images.
 8. **Phase 2 — Cinematic Video Prompt** — After sheet approval, emit a per-shot timed cinematic video prompt (timecode, camera, dialogue, SFX, fixed closing Audio line) ready for an AI video tool.
 9. **Final Storyboard Assembly** — Curate the complete storyboard markdown + PDF embedding the sheet image(s), the generating Phase 1 prompt, the panel/timecode table, and the Phase 2 video prompt.
 
 ## Domain Concepts
 - **Brief**: The input to SceneBoard. Can be anything — an Instagram link with proposed changes, a detailed document, a raw idea, a script, a voice script, or any combination. There is no fixed format.
-- **Composite Storyboard Sheet**: The primary deliverable. A **single image** containing a header (brand + "15-SECOND STORYBOARD"), a grid of numbered panels, each panel carrying a timecode (e.g. `00:00-00:01`) and a one-line shot description. Generated as one render via GPT Image 2 (GPT Image 2 renders legible in-image text reliably, unlike NanoBanana). Reference look: `templates/examples/storyboard-sheet-example-1.png` / `-2.png`.
-- **Panel**: One numbered cell in the sheet grid. **Variable-duration** — a panel may span more than one second; drop the legacy "1 panel ≈ 1 second" assumption. The only hard rules: per-panel timecodes sum to the sheet's ≤15s window, and a sensible panel cap (≤ ~15, sized to the grid).
+- **Composite Storyboard Sheet**: The primary deliverable. A **single image** containing a header (brand + "15-SECOND STORYBOARD"), a grid of numbered panels, each panel carrying a timecode (e.g. `00:00-00:01`) and a one-line shot description. Generated as one render via GPT Image 2 (GPT Image 2 renders legible in-image text reliably, unlike NanoBanana). The depicted shot content inside every panel is **text-free** (see "Text-Free Shot Content" below); only the storyboard's own badges/timecodes/captions and the brand logo carry text. Reference look: `templates/examples/storyboard-sheet-example-1.png` / `-2.png`.
+- **Panel**: One numbered cell in the sheet grid. Each panel depicts a **short shot of ≤2s, typically 1s** (a beat without an explicit duration defaults to 1s; an explicit duration is clamped to (0, 2]s). The hard rules: no panel exceeds 2s, per-panel timecodes sum to the sheet's ≤15s window, and a sensible panel cap (≤ ~15, sized to the grid).
 - **Sheet (≤15s block)**: Each composite sheet covers **≤ 15 seconds**. Videos longer than 15s are split into multiple sheets (one per ≤15s block) with continuing timecodes via `splitIntoSheets()`.
 - **Grid mapping**: panel count → grid. 9→3×3, 12→3×4, 15→3×5 (default), 20→4×5; vertical 9:16 flips rows×cols (e.g. 15→5×3).
-- **GPT Image 2**: The image model (`gpt_image_2` on Higgsfield; `gpt-image-2`/`gpt-image-1.5` on the ImageEngine fallback). No separate system-instruction slot — the full prompt is one continuous body. Strong at rendering legible in-image text (panel numbers, timecodes, captions). Prompt guide: `systems/prompt-writer/knowledge/models/image/gpt-image-2.md`.
-- **Higgsfield CLI**: The **primary** image transport. SceneBoard shells out to the globally-installed `higgsfield` binary (`higgsfield generate create gpt_image_2 … --wait --json`), parses the result URL, and downloads the image. Reference images via repeatable `--image` (up to ~8). See `knowledge/higgsfield-cli.md`.
-- **ImageEngine (fallback)**: The existing typed HTTP client (`src/image-client.ts`, localhost:3002, wraps WisGate). Used **automatically** whenever the Higgsfield CLI is unavailable, unauthenticated, or fails. Caps at 3 reference images. ImageEngine remains `active` in the registry — it is the fallback transport, not retired.
-- **Provider façade**: `src/image-provider.ts` — `generateImage()` tries Higgsfield first, falls back to `image-client.generateSingle()`; logs which provider served the request.
+- **GPT Image 2**: The image model, served as ImageEngine's **default provider**. No separate system-instruction slot — the full prompt is one continuous body. Strong at rendering legible in-image text (panel numbers, timecodes, captions). Prompt guide: `systems/prompt-writer/knowledge/models/image/gpt-image-2.md`.
+- **ImageEngine (sole image transport)**: The typed HTTP client (`src/image-client.ts`, localhost:3002, wraps WisGate + a provider fleet). SceneBoard sends every image request here with NO `model` so ImageEngine serves its default GPT Image 2 provider, manages auth/cost/rate-limits centrally, and persists to its gallery/SQLite. Caps at 3 reference images (gallery ids).
+- **Provider façade**: `src/image-provider.ts` — `generateImage()` calls `image-client.generateSingle()` (omitting `model`), downloads the result via `getImage(id)`, writes it to `outPath`, and returns the gallery `imageId` for reference chaining.
 - **Reference Sheet (4-view)**: A generalized Stage 4.5 artifact (`src/reference-sheet-generator.ts`). Two types — **character** (FULL BODY FRONT / FULL BODY REAR / FRONT CLOSE-UP / PROFILE CLOSE-UP) and **product** (FRONT THREE-QUARTER / REAR STRAIGHT-ON / FRONT CLOSE-UP / PROFILE LEFT) — each rendered as four views on a neutral grey background with clean studio lighting, fed as reference image(s) into the composite sheet. Replaces the legacy 6-pose character-sheet layout.
 - **brand_category**: A client brand profile field (`clothing | product | service`) that routes reference-sheet reusability — see "Reference Sheet Reusability" below.
 - **Voice Script / On-Screen Text**: Narration/dialogue and text overlays. Not always needed — SceneBoard asks before generating.
 - **Dynamic Workflow**: The core design principle — any component provided in the brief is locked in; any component missing is generated with options for approval.
 
-## Image Path: Higgsfield Primary → ImageEngine Fallback
+## Image Path: ImageEngine-only (GPT Image 2 default provider)
 
-- **Primary — Higgsfield CLI** (`src/higgsfield-client.ts`): spawns `higgsfield generate create gpt_image_2 … --aspect_ratio … --quality high --resolution 2k [--image …]… --wait --json`, parses the JSON job array for the result media URL, downloads to disk. Exposes `checkAuth()`. Typed errors: `HiggsfieldCliError` (non-zero exit / parse failure), `HiggsfieldTimeoutError` (wait exceeded), `HiggsfieldAuthError` (unauthenticated / session expired).
-- **Fallback — ImageEngine HTTP** (`src/image-client.ts`): reused unchanged. The provider façade falls back on **any** Higgsfield failure via `generateSingle({ model: "gpt-image-2" })` with a `gpt-image-1.5` retry.
-- **Aspect ratio mapping**: 16:9 landscape is the default for sheets; 9:16 vertical is supported (flips the grid rows×cols).
-- **Reference cap**: Higgsfield ~8 refs (repeatable `--image`); ImageEngine 3 refs. The composite-sheet reference resolver prioritizes subjects appearing earliest/most often when over the cap.
+- **ImageEngine HTTP** (`src/image-client.ts`): the sole transport, reused unchanged. The provider façade (`src/image-provider.ts`) calls `generateSingle({ prompt, aspectRatio, forceImage: true, openaiQuality, referenceImageIds?, systemInstruction?, sceneId? })` with **no `model`**, so ImageEngine serves its default GPT Image 2 provider. It then downloads the result via `getImage(id)` and writes it to the caller's `outPath`, returning the gallery `imageId`.
+- **Aspect ratio**: 16:9 landscape is the default for sheets; 9:16 vertical is supported (flips the grid rows×cols).
+- **Reference cap**: 3 ImageEngine gallery ids (resolved against the images table). The composite-sheet reference resolver prioritizes subjects appearing earliest/most often when over the cap.
+
+## Text-Free Shot Content
+
+The imagery **inside** every panel frame (the depicted shot itself) must be visually clean: NO words, captions, subtitles, signage, on-screen UI text, watermarks, labels, or lettering of any kind. The ONLY in-frame text or graphic permitted within a depicted shot is the **brand logo** and any supplied **brand assets**. This restriction applies ONLY to the depicted shot content — the storyboard's own presentation chrome (panel-number badge, top-right timecode label, and the one-line caption beneath each frame) is still rendered. The instruction is woven into the Phase 1 prompt's layout (E), art-direction (G), and render (H) sections.
 
 ## Reference Sheet Stage (Stage 4.5) — Character + Product, 4-view
 
-The reference-sheet generator (`src/reference-sheet-generator.ts`) calls `image-provider.generateImage()` (Higgsfield primary → ImageEngine fallback), uses gpt-image-2, and emits 4-view sheets for two subject types. `[INSERT DESIRED STYLE]` is filled from the locked Style Anchor; the bracketed subject/garment slots are filled from the locked description (+ selected garments for clothing brands). Per-subject parallel generation with per-subject error handling is preserved.
+The reference-sheet generator (`src/reference-sheet-generator.ts`) calls `image-provider.generateImage()` (ImageEngine-only, GPT Image 2 default provider) and emits 4-view sheets for two subject types. `[INSERT DESIRED STYLE]` is filled from the locked Style Anchor; the bracketed subject/garment slots are filled from the locked description (+ selected garments for clothing brands). Per-subject parallel generation with per-subject error handling is preserved.
 
 **Character reference sheet (4 views):** FULL BODY FRONT (three-quarter, head-to-feet) · FULL BODY REAR (directly behind) · FRONT CLOSE-UP (head & shoulders, straight-on) · PROFILE CLOSE-UP (90° left profile). Clean studio lighting (soft key upper-left, gentle fill from the right), consistent identity/proportions/costume across all four views, no text/watermarks/extra figures/background.
 
@@ -94,14 +96,14 @@ Read from `client/{client}/brand.md` (`brand_category: clothing | product | serv
 
 Consistency across panels and across sheets is enforced cumulatively:
 
-0. **Reference Sheets (pixel anchor, Stage 4.5)** — All approved 4-view character/product sheets are passed as reference images into the composite-sheet generation (Higgsfield up to ~8; ImageEngine 3). Identity/product is pinned across every panel that features the subject. Highest-priority signal when present.
+0. **Reference Sheets (pixel anchor, Stage 4.5)** — All approved 4-view character/product sheets are passed as reference images (ImageEngine gallery ids, capped at 3) into the composite-sheet generation. Identity/product is pinned across every panel that features the subject. Highest-priority signal when present.
 1. **Style Anchor Preamble (baseline)** — A condensed visual identity woven into the Phase 1 prompt's style declaration (section B). Handles palette, photographic/illustration style, lighting mood, camera conventions. When reference sheets exist, the Style Anchor must NOT redefine a subject's physical appearance — it only constrains stylistic treatment.
 2. **Character/Product DNA (text)** — Locked physical/product descriptions woven verbatim into the relevant panel descriptions.
 3. **Cross-sheet continuity** — For multi-sheet (>15s) storyboards, the same reference sheets + Style Anchor + DNA carry across all sheets so the look holds from block to block.
 
 ## Iterate Flow — Reference-Based Panel Edit
 
-To change a panel, SceneBoard passes the **approved storyboard sheet image back to Higgsfield as a reference image** with an instruction to reproduce the sheet exactly while changing only the named panel(s), then regenerates the **full sheet** (same reference-based edit path on the ImageEngine fallback). Best-effort caveat applies — the model reproduces, not pixel-copies. Full-sheet re-runs and Phase 2 regeneration are also supported. This replaces the legacy per-scene re-generation model.
+To change a panel, SceneBoard passes the **approved storyboard sheet image back to ImageEngine as a reference image** with an instruction to reproduce the sheet exactly while changing only the named panel(s), then regenerates the **full sheet**. Best-effort caveat applies — the model reproduces, not pixel-copies. Full-sheet re-runs and Phase 2 regeneration are also supported. This replaces the legacy per-scene re-generation model.
 
 ## Edge Cases & Gotchas
 
@@ -152,7 +154,7 @@ Determine the best marketing/engagement framework by: analyzing the brief (ad / 
 - **Visuals + story alignment = client approval**.
 - **The brief is flexible, the output is not**: Any input format; always a polished, professional storyboard.
 - **Ask, don't assume**: shot duration, voice script, on-screen text, platform, aspect ratio, `brand_category` — always confirm.
-- **Variable panel duration**: never assume 1 panel = 1 second. Read per-panel timecode ranges from the scene breakdown; only enforce the ≤15s sum and the panel-count cap.
+- **Short panels**: each panel is a short shot of ≤2s, typically 1s. A beat without an explicit duration defaults to 1s; an explicit duration is clamped to (0, 2]s. Enforce the per-panel 2s cap, the ≤15s sheet sum, and the panel-count cap.
 - **Style consistency** comes from the Style Anchor (section B) carried into every Phase 1 prompt; **subject consistency** comes from the 4-view reference sheets passed as reference images.
 
 ## Client System
@@ -205,8 +207,7 @@ Both versions saved; previous versions preserved (not overwritten) when iteratin
 
 ## Dependencies
 - Marketing/Sales/Social/Ads skills: `ad-creative`, `copywriting`, `social-content`, `marketing-psychology`, `paid-ads`, `sales-enablement`, `content-strategy`.
-- **Higgsfield CLI** — primary image transport (global binary; environment prerequisite, not an npm dep). See `dependencies.md`.
-- **ImageEngine** — fallback image transport (localhost:3002, wraps WisGate). Stays `active`.
+- **ImageEngine** — the sole image transport (localhost:3002, wraps WisGate + a provider fleet); GPT Image 2 is its default provider. See `dependencies.md`.
 - **PromptWriter** — authoritative prompt-knowledge source: `systems/prompt-writer/knowledge/models/image/gpt-image-2.md` and the storyboard-prompt-builder methodology.
 - **Remotion** — downstream text-heavy scene rendering (title cards, CTAs).
 
@@ -227,6 +228,5 @@ Both versions saved; previous versions preserved (not overwritten) when iteratin
 
 ## Reference Guides
 - Phase 1/Phase 2 methodology: `knowledge/storyboard-prompt-builder.md`.
-- Higgsfield CLI surface: `knowledge/higgsfield-cli.md`.
 - GPT Image 2 storyboard-sheet prompt guide: `systems/prompt-writer/knowledge/models/image/gpt-image-2.md` (centralized in PromptWriter).
 - Legacy NanoBanana Pro guide (`knowledge/nanobanana-pro-prompt-guide.md`) is retained for reference only — superseded by the GPT Image 2 / storyboard-builder guidance and no longer the active path.

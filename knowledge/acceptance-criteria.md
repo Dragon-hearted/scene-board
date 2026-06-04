@@ -45,8 +45,8 @@ These criteria are binary pass/fail and must all be satisfied before a storyboar
 - [ ] Reference sheets are generated as **4-view** sheets on a neutral grey background for **character** and/or **product** subjects (matching the templates in `knowledge/storyboard-prompt-builder.md`)
 - [ ] The character sheet uses the 4 views: FULL BODY FRONT / FULL BODY REAR / FRONT CLOSE-UP / PROFILE CLOSE-UP; the product sheet uses: FRONT THREE-QUARTER / REAR STRAIGHT-ON / FRONT CLOSE-UP / PROFILE LEFT
 - [ ] Each sheet's `[INSERT DESIRED STYLE]` is filled from the locked Style Anchor; bracketed subject/garment slots are filled from the locked description (+ selected garments for clothing brands)
-- [ ] Reference sheets are generated via Higgsfield (`gpt_image_2`) with automatic ImageEngine fallback (`gpt-image-2` → `gpt-image-1.5`)
-- [ ] **All** approved reference sheets for the storyboard (multiple character + multiple product) are passed as reference images into the composite-sheet generation, capped at the provider limit (~8 Higgsfield / 3 ImageEngine), prioritizing subjects appearing earliest/most often
+- [ ] Reference sheets are generated via ImageEngine (no `model` → its default GPT Image 2 provider) and downloaded to disk, each carrying a gallery `imageId`
+- [ ] **All** approved reference sheets for the storyboard (multiple character + multiple product) are passed as reference images (gallery ids) into the composite-sheet generation, capped at the ImageEngine limit (3), prioritizing subjects appearing earliest/most often
 - [ ] Reusability follows `brand_category`: `clothing` → per-storyboard sheets under `client/{client}/storyboards/{project}/references/{slug}/` with garment-selection + reuse-vs-new-model prompts; `product`/`service` → reusable common sheets under `client/{client}/references/{slug}/`
 - [ ] On approval, the sheet image + metadata are cached at the brand_category-appropriate path for reuse
 
@@ -54,10 +54,12 @@ These criteria are binary pass/fail and must all be satisfied before a storyboar
 
 - [ ] `src/storyboard-sheet-prompt.ts` produces a **single continuous** Phase 1 prompt containing sections A–H
 - [ ] Panel count maps to the correct grid (9→3×3, 12→3×4, 15→3×5, 20→4×5; 9:16 vertical flips rows×cols)
-- [ ] The sheet is generated as **one composite image** per ≤15s block via the provider (Higgsfield primary → ImageEngine fallback), with all approved reference sheets passed as reference images
-- [ ] The aspect ratio passed to the provider matches the storyboard's declared platform aspect ratio (16:9 default, 9:16 vertical)
+- [ ] The sheet is generated as **one composite image** per ≤15s block via ImageEngine (no `model` → its default GPT Image 2 provider), with all approved reference sheets passed as reference ids
+- [ ] The aspect ratio passed to ImageEngine matches the storyboard's declared platform aspect ratio (16:9 default, 9:16 vertical)
 - [ ] Each sheet contains a header (brand + "15-SECOND STORYBOARD"), numbered panels, per-panel timecodes, and one-line shot captions
-- [ ] The provider façade logs which provider (Higgsfield / ImageEngine) served each request
+- [ ] The depicted shot content inside every panel is text-free (no words/captions/subtitles/signage/UI text/watermarks/lettering); the only permitted in-frame text/graphic is the brand logo and supplied brand assets, while the panel-number badge, timecode label, and one-line caption chrome are still rendered
+- [ ] Each panel depicts a short shot of ≤2s (default ~1s); a beat with an explicit duration > 2s fails `validateSheet`
+- [ ] The provider façade logs that ImageEngine served the request
 
 ### Phase 2 — Cinematic Video Prompt
 
@@ -69,16 +71,16 @@ These criteria are binary pass/fail and must all be satisfied before a storyboar
 
 ### Iterate Flow
 
-- [ ] Changing a panel passes the existing approved sheet to Higgsfield (or ImageEngine on fallback) **as a reference image** with a "reproduce the sheet exactly, change only Panel N" instruction, then regenerates the **full sheet**
+- [ ] Changing a panel passes the existing approved sheet to ImageEngine **as a reference image** with a "reproduce the sheet exactly, change only Panel N" instruction, then regenerates the **full sheet**
 - [ ] Full-sheet re-runs and Phase 2 regeneration are supported without redoing the whole pipeline
 - [ ] Pipeline state (locked script, Style Anchor, reference sheets, approved sheets) is preserved between sessions
 
 ### Image Generation Path
 
-- [ ] The Higgsfield CLI is the primary transport; ImageEngine HTTP is the automatic fallback on any Higgsfield failure (CLI unavailable, unauthenticated, timeout, non-zero exit)
-- [ ] `image-engine` remains `active` in the registry as the fallback transport
-- [ ] Generated images are downloaded to disk and embedded/referenced in the storyboard
-- [ ] Higgsfield CLI is documented as an environment prerequisite (global install + `higgsfield auth login`), NOT a package.json dependency
+- [ ] ImageEngine HTTP is the SOLE image transport; SceneBoard sends every request with no `model` so ImageEngine serves its default GPT Image 2 provider
+- [ ] `image-engine` is `active` in the registry as the image transport
+- [ ] Generated images are downloaded to disk (via `getImage(id)` → `outPath`) and embedded/referenced in the storyboard
+- [ ] The ImageEngine HTTP service is documented as the environment prerequisite (`http://localhost:3002`); SceneBoard carries NO image-CLI binary dependency
 
 ### Storyboard Document Structure
 
@@ -149,9 +151,11 @@ When the brief included a reference video link, the storyboard must demonstrate 
 - **Phase 2 closing line**: assert the fixed Audio line is present
 - **Reference-sheet templates**: assert character vs product template selection, the 4-view layout text, and `[INSERT DESIRED STYLE]` / `[DESCRIBE …]` substitution
 - **brand_category routing**: assert clothing → per-storyboard path; product/service → reusable path; clothing reuse-vs-new-model branch exists
-- **Provider fallback**: assert `image-provider.generateImage()` falls back to ImageEngine on Higgsfield failure and logs the serving provider
+- **ImageEngine path**: assert `image-provider.generateImage()` calls `generateSingle` with no `model` + `forceImage: true`, downloads via `getImage(id)`, writes to `outPath`, and returns `provider: "image-engine"` with the gallery `imageId`
+- **Text-free shot content**: assert the Phase 1 prompt instructs no in-frame text except the brand logo while still describing the panel-number/timecode/caption chrome
+- **Short panels**: assert missing durations default to 1s, explicit durations clamp to ≤2s, and a >2s panel fails `validateSheet`
 - **Aspect ratio consistency**: assert the declared aspect ratio matches the declared platform via a lookup table
-- **Registry**: assert `image-engine` status is `active`; assert `higgsfield` runtime dependency present in `knowledge/graph.yaml`
+- **Registry**: assert `image-engine` status is `active`
 
 ### Human Review Checklist
 
