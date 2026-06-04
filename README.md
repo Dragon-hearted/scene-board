@@ -199,7 +199,22 @@ This is **not** a secret and **not** an env var. It is intentionally committed t
 
 The Aporto skill IDs (67 = GPT Image 2 2K, 68 = GPT Image 2 1K) were picked once via `aporto discover` during integration and are pinned in `src/aporto.ts` as `APORTO_SKILLS`. End users do not need to run discovery at runtime.
 
-Aporto's pricing model is usage-based and can be cheaper than paying each provider directly, depending on the skill and current Aporto program terms. For the latest discount and referral details (eligible models, qualifying spend, current promotional offers for new accounts), check the Aporto Dashboard before quoting numbers to end users — terms change.
+### Aporto skill pricing (per generation request)
+
+Prices are quoted in USD per single image generation, as returned by `aporto discover` at integration time. Each sheet the pipeline generates costs one request. A 12-sheet storyboard therefore costs roughly the per-request price × 12.
+
+| Aporto skill | Model | Resolution | Price per request |
+|---|---|---|---|
+| **67** (primary, used by default) | GPT Image Text-to-Image 2 | 2K | **$0.05** |
+| **68** (fallback) | GPT Image Text-to-Image 2 | 1K | **$0.03** |
+| 66 | GPT Image Text-to-Image 2 | 4K | $0.08 |
+| 275 | GPT Image Text-to-Image 1.5 | (n/a) | $0.02 |
+| 274 | GPT Image Image-to-Image 1.5 | (n/a) | $0.02 |
+| 63 | GPT Image Image-to-Image 2 | 4K | $0.08 |
+| 64 | GPT Image Image-to-Image 2 | 2K | $0.05 |
+| 65 | GPT Image Image-to-Image 2 | 1K | $0.03 |
+
+These are Aporto's published per-request prices, not discounts. New Aporto accounts may qualify for a promotional **sign-up bonus of up to $3** in free credits (see the Aporto Dashboard for current terms and eligibility). Discounts and referral terms are governed by the Aporto program and change — check the dashboard before quoting numbers to end users.
 
 ---
 
