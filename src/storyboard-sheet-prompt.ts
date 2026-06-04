@@ -3,17 +3,17 @@
  *
  * Ports the `knowledge/storyboard-prompt-builder.md` Phase 1 methodology into a
  * pure, typed TypeScript composer. The output is a SINGLE continuous prompt
- * (sections A–H) that instructs GPT Image 2 (via the Higgsfield CLI, ImageEngine
- * fallback) to render ONE composite multi-panel storyboard sheet: a header bar,
- * a numbered panel grid, and per-panel timecodes + one-line shot captions baked
- * into the image.
+ * (sections A–H) that instructs GPT Image 2 (via ImageEngine) to render ONE
+ * composite multi-panel storyboard sheet: a header bar, a numbered panel grid,
+ * and per-panel timecodes + one-line shot captions baked into the image.
  *
  * Key invariants:
  *  - Each sheet covers ≤ 15 seconds.
- *  - Panels are VARIABLE duration — a panel may span more than one second. We do
- *    NOT assume 1 panel ≈ 1 second. Per-panel durations come from the beats; the
- *    only hard rules are (a) the per-panel timecodes sum to the sheet's ≤15s
- *    window and (b) a sensible panel-count cap sized to the grid.
+ *  - Each panel depicts a SHORT shot of at most 2 seconds, defaulting to ~1
+ *    second. A beat WITHOUT an explicit duration becomes a 1s panel; a beat WITH
+ *    one is clamped to (0, 2]s. The hard rules are (a) no panel exceeds 2s, (b)
+ *    the per-panel timecodes still sum to the sheet's ≤15s window, and (c) a
+ *    sensible panel-count cap sized to the grid.
  *  - Videos longer than 15s split into multiple sheets via `splitIntoSheets`,
  *    with CONTINUING timecodes across sheets (sheet 2 starts where sheet 1 ends).
  *
@@ -24,6 +24,12 @@
 
 /** Hard ceiling for a single sheet's covered time window, in seconds. */
 export const MAX_SHEET_SECONDS = 15;
+
+/** Hard ceiling for a single panel's shot duration, in seconds. */
+export const MAX_PANEL_SECONDS = 2;
+
+/** Default per-panel shot duration when a beat omits one, in seconds. */
+export const DEFAULT_PANEL_SECONDS = 1;
 
 /** Recommended default panel-count cap for a single ≤15s sheet. */
 export const DEFAULT_PANEL_CAP = 15;
@@ -54,8 +60,9 @@ export interface Timecode {
 }
 
 /**
- * A single narrative beat = one storyboard panel. Duration is OPTIONAL and
- * variable; when omitted it is distributed evenly across the sheet window.
+ * A single narrative beat = one storyboard panel. Each panel is a SHORT shot:
+ * `durationSeconds` is OPTIONAL — omit it to default to ~1s (DEFAULT_PANEL_SECONDS)
+ * and any explicit value is clamped to (0, MAX_PANEL_SECONDS]s.
  */
 export interface Beat {
 	/** Shot type — Wide, Medium, Close-up, Low Angle, Macro, etc. */
@@ -66,7 +73,7 @@ export interface Beat {
 	action?: string;
 	/** Optional scene name used as a panel label. */
 	sceneName?: string;
-	/** Variable panel duration in seconds. Omit to auto-distribute. */
+	/** Short panel duration in seconds (≤ 2). Omit to default to ~1s. */
 	durationSeconds?: number;
 }
 
@@ -276,21 +283,17 @@ export function formatTimecode(t: Timecode): string {
 }
 
 /**
- * Resolve per-beat durations. Beats with an explicit `durationSeconds` keep it;
- * the remaining window is split evenly across beats that omit it.
+ * Resolve per-beat durations. Each panel is a SHORT shot: a beat with an
+ * explicit `durationSeconds` is clamped to (0, MAX_PANEL_SECONDS]; a beat
+ * without one defaults to DEFAULT_PANEL_SECONDS (~1s). We do NOT spread a window
+ * evenly across panels — every panel is at most 2s, typically 1s.
  */
-function resolveDurations(beats: Beat[], windowSeconds: number): number[] {
-	const explicit = beats.map((b) =>
-		typeof b.durationSeconds === "number" && b.durationSeconds > 0 ? b.durationSeconds : null,
+function resolveDurations(beats: Beat[]): number[] {
+	return beats.map((b) =>
+		typeof b.durationSeconds === "number" && b.durationSeconds > 0
+			? Math.min(b.durationSeconds, MAX_PANEL_SECONDS)
+			: DEFAULT_PANEL_SECONDS,
 	);
-	const explicitSum = explicit.reduce<number>((acc, d) => acc + (d ?? 0), 0);
-	const missingCount = explicit.filter((d) => d === null).length;
-
-	if (missingCount === 0) return explicit as number[];
-
-	const remaining = windowSeconds - explicitSum;
-	const perMissing = remaining > 0 ? remaining / missingCount : 1;
-	return explicit.map((d) => (d === null ? perMissing : d));
 }
 
 /**
@@ -301,9 +304,8 @@ export function assignTimecodes(
 	beats: Beat[],
 	options: { windowSeconds?: number; startSeconds?: number } = {},
 ): PlacedBeat[] {
-	const windowSeconds = options.windowSeconds ?? MAX_SHEET_SECONDS;
 	let cursor = options.startSeconds ?? 0;
-	const durations = resolveDurations(beats, windowSeconds);
+	const durations = resolveDurations(beats);
 
 	return beats.map((beat, i) => {
 		const durationSeconds = durations[i];
@@ -423,6 +425,11 @@ export function validateSheet(
 		if (b.durationSeconds <= 0) {
 			errors.push(`panel ${b.panel} has non-positive duration`);
 		}
+		if (b.durationSeconds > MAX_PANEL_SECONDS + EPSILON) {
+			errors.push(
+				`panel ${b.panel} lasts ${b.durationSeconds.toFixed(2)}s, exceeding the ${MAX_PANEL_SECONDS}s per-panel cap (each panel is a short shot of ≤${MAX_PANEL_SECONDS}s)`,
+			);
+		}
 	}
 
 	return { valid: errors.length === 0, errors };
@@ -532,7 +539,9 @@ function buildLayoutDetails(grid: Grid, panelCount: number): string {
 	return [
 		"E) SHEET LAYOUT — Present it as a polished film/animation production storyboard sheet:",
 		`a neutral presentation board background, ${panelCount} evenly-sized rectangular panels in a clean ${grid.rows}×${grid.cols} grid with crisp gutters and thin borders between frames.`,
-		"Each panel carries, baked into the image: a panel number badge in the top-left corner, a timecode label (e.g. 00:00-00:01) in the top-right corner, and a single one-line shot-description caption in a clean sans-serif typeface directly beneath the frame.",
+		"Each panel depicts a short shot of at most 2 seconds, typically 1 second.",
+		"Each panel carries, baked into the image, the storyboard's own presentation chrome: a panel number badge in the top-left corner, a timecode label (e.g. 00:00-00:01) in the top-right corner, and a single one-line shot-description caption in a clean sans-serif typeface directly beneath the frame.",
+		"CRITICAL — TEXT-FREE SHOT CONTENT: the imagery INSIDE every panel frame (the depicted shot itself) must contain NO words, captions, subtitles, signage, on-screen UI text, watermarks, labels, or lettering of any kind — the depicted scene must be visually clean. The ONLY in-frame text or graphic permitted within the depicted shot is the brand logo and any supplied brand assets. This restriction applies ONLY to the DEPICTED SHOT CONTENT and does NOT remove the storyboard's own panel-number badge, top-right timecode label, or the one-line caption beneath each frame — those are presentation chrome and MUST still be rendered.",
 		"Studio-quality typography, consistent alignment, generous margins, and a professional storyboard-presentation aesthetic.",
 	].join(" ");
 }
@@ -569,13 +578,15 @@ function buildSceneBreakdown(beats: PlacedBeat[], subjects: SubjectDNA[] | undef
 
 function buildArtDirectionFooter(input: StoryboardSheetPromptInput): string {
 	const profile = styleProfile(input.style);
-	return `G) ART DIRECTION — ${profile.artDirection} Vary shot types across the sequence (never repeat the same shot type in consecutive panels) and escalate emotional intensity toward the climax.`;
+	return `G) ART DIRECTION — ${profile.artDirection} Vary shot types across the sequence (never repeat the same shot type in consecutive panels) and escalate emotional intensity toward the climax. Keep the depicted shot content text-free: no words, captions, subtitles, signage, on-screen UI text, watermarks, labels, or lettering inside the frames — the only permitted in-frame text/graphic is the brand logo and supplied brand assets (the storyboard's own panel-number badges, timecode labels, and one-line captions remain).`;
 }
 
 function buildRenderFooter(aspect: AspectRatio): string {
 	return [
 		"H) RENDERING & FORMAT —",
 		`Output a single masterpiece-quality, production-ready composite storyboard sheet at ${aspect} aspect ratio.`,
+		"Each panel depicts a short shot of at most 2 seconds, typically 1 second.",
+		"Keep the depicted shot content text-free — no words, captions, subtitles, signage, on-screen UI text, watermarks, or lettering inside the frames; the only permitted in-frame text/graphic is the brand logo and supplied brand assets — while STILL rendering the storyboard's own panel-number badges, top-right timecode labels, and one-line shot captions as presentation chrome.",
 		"Sharp focus, high detail, clean legible captions and timecodes, and a cohesive look across every panel. This is one professional storyboard presentation sheet, not separate images.",
 	].join(" ");
 }

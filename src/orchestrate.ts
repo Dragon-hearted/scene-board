@@ -7,8 +7,8 @@
  *      (capped at the provider reference limit).
  *   3. Split the beats into ≤15s sheets and build a Phase 1 composite-sheet
  *      prompt per sheet (storyboard-sheet-prompt.ts).
- *   4. Generate each composite sheet via the image-provider (Higgsfield primary
- *      → ImageEngine fallback) with all reference-sheet refs attached.
+ *   4. Generate each composite sheet via the image-provider (ImageEngine — whose
+ *      default provider is GPT Image 2) with all reference-sheet refs attached.
  *   5. Build a Phase 2 cinematic video prompt per sheet (video-prompt.ts).
  *
  * Composite sheets are generated in parallel with per-sheet error handling: a
@@ -68,14 +68,11 @@ export interface StoryboardOrchestrationInput {
 	sheetOutDir: string;
 	/** Filename for sheet N. Defaults to `storyboard-sheet-{n}.png`. */
 	sheetFileName?: (sheetNumber: number) => string;
-	/** Provider reference caps (override defaults). */
-	higgsfieldCap?: number;
+	/** ImageEngine reference-id cap (override default). */
 	imageEngineCap?: number;
 	/** Composite-sheet output knobs. */
 	resolution?: ProviderResolution;
 	quality?: ProviderQuality;
-	/** Skip the Higgsfield auth probe (tests). */
-	skipAuthCheck?: boolean;
 }
 
 export interface OrchestratedSheet {
@@ -144,7 +141,6 @@ export async function orchestrateStoryboard(
 
 	// 2) Resolve ALL approved sheets into the composite-sheet reference set.
 	const resolvedReferences = resolveSheetReferences(referenceSheets, {
-		...(input.higgsfieldCap !== undefined && { higgsfieldCap: input.higgsfieldCap }),
 		...(input.imageEngineCap !== undefined && { imageEngineCap: input.imageEngineCap }),
 	});
 
@@ -163,23 +159,17 @@ export async function orchestrateStoryboard(
 			let image: ProviderImageResult | undefined;
 			let error: string | undefined;
 			try {
-				image = await generateImage(
-					{
-						prompt,
-						aspectRatio,
-						...(input.resolution && { resolution: input.resolution }),
-						...(input.quality && { quality: input.quality }),
-						...(resolvedReferences.referenceImagePaths.length > 0 && {
-							referenceImagePaths: resolvedReferences.referenceImagePaths,
-						}),
-						...(resolvedReferences.referenceImageIds.length > 0 && {
-							referenceImageIds: resolvedReferences.referenceImageIds,
-						}),
-						outPath,
-						id: `sheet-${sheet.sheetNumber}`,
-					},
-					{ skipAuthCheck: input.skipAuthCheck },
-				);
+				image = await generateImage({
+					prompt,
+					aspectRatio,
+					...(input.resolution && { resolution: input.resolution }),
+					...(input.quality && { quality: input.quality }),
+					...(resolvedReferences.referenceImageIds.length > 0 && {
+						referenceImageIds: resolvedReferences.referenceImageIds,
+					}),
+					outPath,
+					id: `sheet-${sheet.sheetNumber}`,
+				});
 			} catch (err) {
 				error = err instanceof Error ? err.message : String(err);
 			}

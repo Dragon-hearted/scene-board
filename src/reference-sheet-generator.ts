@@ -5,7 +5,7 @@
  * Emits ONE composite 4-VIEW reference sheet image per subject, for TWO subject
  * types — `character` and `product` — each rendered on a NEUTRAL GREY background
  * with clean studio lighting. Generation is routed through the image-provider
- * façade (Higgsfield CLI `gpt_image_2` primary → ImageEngine HTTP fallback).
+ * façade (ImageEngine HTTP — whose default provider is GPT Image 2).
  *
  *   character — FULL BODY FRONT / FULL BODY REAR / FRONT CLOSE-UP / PROFILE
  *               CLOSE-UP. `[INSERT DESIRED STYLE]` is filled from the locked
@@ -31,7 +31,6 @@
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { downloadToFile } from "./higgsfield-client";
 import {
 	type ImageProviderName,
 	type ProviderAspectRatio,
@@ -47,8 +46,7 @@ export type SheetType = "character" | "product";
 /** Brand reusability routing, read from `client/{client}/brand.md`. */
 export type BrandCategory = "clothing" | "product" | "service";
 
-/** Provider reference-image caps (Higgsfield ~8, ImageEngine 3). */
-export const HIGGSFIELD_REF_CAP = 8;
+/** ImageEngine reference-image cap (gallery ids resolved against the images table). */
 export const IMAGE_ENGINE_REF_CAP = 3;
 
 export interface ReferenceSubject {
@@ -66,12 +64,10 @@ export interface ReferenceSubject {
 	 */
 	garments?: string[];
 	/**
-	 * Reference image LOCAL PATHS that anchor this subject's look (e.g. a cached
-	 * model identity to re-render in a new outfit, or brand product photos).
-	 * Consumed by the Higgsfield transport.
+	 * ImageEngine gallery ids that anchor this subject's look (e.g. a cached model
+	 * identity to re-render in a new outfit, or brand product photos). Resolved by
+	 * ImageEngine against the images table and chained as `referenceImageIds`.
 	 */
-	referenceImagePaths?: string[];
-	/** ImageEngine gallery ids for the fallback transport (optional). */
 	sourceRefImageIds?: string[];
 	/**
 	 * Clothing reuse-cached-identity branch: when true, the prompt instructs the
@@ -102,8 +98,6 @@ export interface ReferenceSheetInput {
 	aspectRatio?: ProviderAspectRatio;
 	resolution?: ProviderResolution;
 	quality?: ProviderQuality;
-	/** Skip the Higgsfield auth probe (tests). */
-	skipAuthCheck?: boolean;
 }
 
 export interface ReferenceSheet {
@@ -261,9 +255,7 @@ export function composeReferenceSheetPrompt(
 // ─── Composite-sheet reference resolution ─────────────────────────────────────
 
 export interface ResolvedSheetReferences {
-	/** Local paths for the Higgsfield transport (capped at the Higgsfield cap). */
-	referenceImagePaths: string[];
-	/** Gallery ids for the ImageEngine fallback (capped at the ImageEngine cap). */
+	/** Gallery ids for ImageEngine (capped at the ImageEngine cap). */
 	referenceImageIds: string[];
 }
 
@@ -272,16 +264,15 @@ export interface ResolvedSheetReferences {
  * reference resolver: ALL approved reference sheets (multiple character +
  * multiple product) become the reference images passed into composite-sheet
  * generation. Subjects appearing earliest/most often are prioritised when the
- * provider reference cap is exceeded (Higgsfield ~8 paths; ImageEngine 3 ids).
+ * provider reference cap is exceeded (ImageEngine resolves up to 3 gallery ids).
  *
- * Returns BOTH a Higgsfield path list and an ImageEngine id list so the same
- * resolved set works whichever transport serves the composite generation.
+ * Returns an ImageEngine gallery-id list — every reference sheet carries an
+ * `imageId` because it too is generated through ImageEngine.
  */
 export function resolveSheetReferences(
 	sheets: ReferenceSheet[],
-	opts: { higgsfieldCap?: number; imageEngineCap?: number } = {},
+	opts: { imageEngineCap?: number } = {},
 ): ResolvedSheetReferences {
-	const higgsfieldCap = opts.higgsfieldCap ?? HIGGSFIELD_REF_CAP;
 	const imageEngineCap = opts.imageEngineCap ?? IMAGE_ENGINE_REF_CAP;
 
 	// Stable sort by appearanceCount desc; ties keep input order ("earliest").
@@ -293,19 +284,14 @@ export function resolveSheetReferences(
 		})
 		.map((entry) => entry.sheet);
 
-	const referenceImagePaths: string[] = [];
 	const referenceImageIds: string[] = [];
 	for (const sheet of ranked) {
-		if (sheet.localPath && !referenceImagePaths.includes(sheet.localPath)) {
-			referenceImagePaths.push(sheet.localPath);
-		}
 		if (sheet.imageId && !referenceImageIds.includes(sheet.imageId)) {
 			referenceImageIds.push(sheet.imageId);
 		}
 	}
 
 	return {
-		referenceImagePaths: referenceImagePaths.slice(0, higgsfieldCap),
 		referenceImageIds: referenceImageIds.slice(0, imageEngineCap),
 	};
 }
@@ -315,10 +301,10 @@ export function resolveSheetReferences(
 /**
  * Generate 4-view reference sheets for each subject, in parallel, with
  * per-subject error handling. Each sheet is routed through the image-provider
- * (Higgsfield primary → ImageEngine fallback) and written to the brand_category
- * cache directory. When the provider serves a URL only (ImageEngine), the image
- * is downloaded so EVERY successful sheet has a local path usable as a
- * composite-sheet reference.
+ * (ImageEngine — whose default provider is GPT Image 2) and written to the
+ * brand_category cache directory. The provider downloads every result to the
+ * cache directory, so EVERY successful sheet has both a local path AND a gallery
+ * `imageId` usable as a composite-sheet `referenceImageIds` reference.
  */
 export async function generateReferenceSheets(
 	input: ReferenceSheetInput,
@@ -341,44 +327,29 @@ export async function generateReferenceSheets(
 			});
 			const outPath = join(dir, `${subject.slug}-reference-sheet.png`);
 
-			const image = await generateImage(
-				{
-					prompt,
-					aspectRatio: input.aspectRatio ?? "16:9",
-					...(input.resolution && { resolution: input.resolution }),
-					...(input.quality && { quality: input.quality }),
-					...(subject.referenceImagePaths &&
-						subject.referenceImagePaths.length > 0 && {
-							referenceImagePaths: subject.referenceImagePaths,
-						}),
-					...(subject.sourceRefImageIds &&
-						subject.sourceRefImageIds.length > 0 && {
-							referenceImageIds: subject.sourceRefImageIds,
-						}),
-					outPath,
-					id: subject.slug,
-				},
-				{ skipAuthCheck: input.skipAuthCheck },
-			);
-
-			// Ensure a local path exists even when ImageEngine served (URL only),
-			// so the sheet can be used as a composite-sheet reference.
-			let localPath = image.localPath;
-			if (!localPath && image.imageUrl) {
-				await downloadToFile(image.imageUrl, outPath);
-				localPath = outPath;
-			}
+			const image = await generateImage({
+				prompt,
+				aspectRatio: input.aspectRatio ?? "16:9",
+				...(input.resolution && { resolution: input.resolution }),
+				...(input.quality && { quality: input.quality }),
+				...(subject.sourceRefImageIds &&
+					subject.sourceRefImageIds.length > 0 && {
+						referenceImageIds: subject.sourceRefImageIds,
+					}),
+				outPath,
+				id: subject.slug,
+			});
 
 			return {
 				slug: subject.slug,
 				name: subject.name,
 				type: subject.type,
 				prompt,
-				...(localPath && { localPath }),
+				localPath: image.localPath,
 				imageUrl: image.imageUrl,
 				model: image.model,
 				provider: image.provider,
-				...(image.imageId && { imageId: image.imageId }),
+				imageId: image.imageId,
 				appearanceCount: subject.appearanceCount ?? 0,
 			};
 		}),

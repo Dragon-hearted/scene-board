@@ -34,7 +34,7 @@ pdf_options:
 | **Panels** | {{panel-count}} |
 | **Video Type** | {{video-type}} |
 | **Goal** | {{video-goal}} |
-| **Image Provider** | Higgsfield (GPT Image 2) — ImageEngine fallback |
+| **Image Provider** | ImageEngine (GPT Image 2 default provider) |
 | **Date** | {{date}} |
 | **Status** | {{status}} |
 
@@ -62,7 +62,7 @@ pdf_options:
 | **Locked Description** | {{locked-description}} |
 | **Garments** (clothing only) | {{selected-garments-or-N/A}} |
 | **Appears in Panels** | {{panel-list}} |
-| **Provider / Model** | {{higgsfield \| image-engine}} / gpt_image_2 |
+| **Provider / Model** | image-engine / gpt-image-2 |
 
 {{END FOR EACH}}
 

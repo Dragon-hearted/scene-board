@@ -2,16 +2,20 @@
  * Unit tests for the Phase 1 composite-sheet prompt composer.
  *
  * Covers: grid mapping (9/12/15/20), the vertical 9:16 row/col flip, the
- * panel-count cap, VARIABLE panel duration (uneven timecodes summing to ≤15s),
- * `splitIntoSheets` for 15/30/60s videos with continuing timecodes, timecode
- * arithmetic, and the presence of sections A–H in the composed prompt.
+ * panel-count cap, SHORT panel duration (each panel ≤2s, defaulting to ~1s),
+ * `splitIntoSheets` for short-panel videos with continuing timecodes, timecode
+ * arithmetic, the text-free shot-content instruction (with retained chrome), and
+ * the presence of sections A–H in the composed prompt.
  */
 
 import { describe, expect, test } from "bun:test";
 import {
 	type Beat,
 	DEFAULT_PANEL_CAP,
+	DEFAULT_PANEL_SECONDS,
+	MAX_PANEL_SECONDS,
 	MAX_SHEET_SECONDS,
+	type PlacedBeat,
 	actForPanel,
 	assignTimecodes,
 	composeStoryboardSheetPrompt,
@@ -42,6 +46,17 @@ function evenBeats(n: number, durationSeconds?: number): Beat[] {
 			...(durationSeconds !== undefined && { durationSeconds }),
 		}),
 	);
+}
+
+/** Build a placed beat directly (bypassing duration resolution) for validation tests. */
+function placedBeat(panel: number, durationSeconds: number, startSeconds: number): PlacedBeat {
+	return {
+		shotType: "Medium",
+		description: `Scene ${panel}`,
+		panel,
+		durationSeconds,
+		timecode: { startSeconds, endSeconds: startSeconds + durationSeconds },
+	};
 }
 
 // ─── Grid mapping ─────────────────────────────────────────────────────────────
@@ -84,51 +99,61 @@ describe("timecode helpers", () => {
 		expect(formatTimecode({ startSeconds: 13, endSeconds: 15 })).toBe("00:13-00:15");
 	});
 
-	test("assignTimecodes places beats contiguously from the start offset", () => {
-		const placed = assignTimecodes(evenBeats(3, 5), { windowSeconds: 15, startSeconds: 0 });
+	test("assignTimecodes places short panels contiguously from the start offset", () => {
+		const placed = assignTimecodes(evenBeats(3, 2), { startSeconds: 0 });
 		expect(placed.map((p) => p.panel)).toEqual([1, 2, 3]);
-		expect(placed[0].timecode).toEqual({ startSeconds: 0, endSeconds: 5 });
-		expect(placed[1].timecode).toEqual({ startSeconds: 5, endSeconds: 10 });
-		expect(placed[2].timecode).toEqual({ startSeconds: 10, endSeconds: 15 });
+		expect(placed[0].timecode).toEqual({ startSeconds: 0, endSeconds: 2 });
+		expect(placed[1].timecode).toEqual({ startSeconds: 2, endSeconds: 4 });
+		expect(placed[2].timecode).toEqual({ startSeconds: 4, endSeconds: 6 });
 	});
 
-	test("assignTimecodes auto-distributes the window across beats with no duration", () => {
-		const placed = assignTimecodes(evenBeats(3), { windowSeconds: 15 });
-		expect(placed.map((p) => p.durationSeconds)).toEqual([5, 5, 5]);
-		expect(placed[2].timecode.endSeconds).toBeCloseTo(15);
+	test("assignTimecodes defaults beats with no duration to ~1s panels", () => {
+		const placed = assignTimecodes(evenBeats(3));
+		expect(placed.map((p) => p.durationSeconds)).toEqual([
+			DEFAULT_PANEL_SECONDS,
+			DEFAULT_PANEL_SECONDS,
+			DEFAULT_PANEL_SECONDS,
+		]);
+		expect(placed[2].timecode.endSeconds).toBeCloseTo(3);
 	});
 });
 
-// ─── Variable panel duration ──────────────────────────────────────────────────
+// ─── Short panel duration ─────────────────────────────────────────────────────
 
-describe("variable panel duration", () => {
-	test("honours uneven explicit durations that sum to the ≤15s window", () => {
+describe("short panel duration", () => {
+	test("defaults missing durations to 1s and clamps explicit durations to ≤2s", () => {
 		const beats: Beat[] = [
 			beat({ durationSeconds: 2 }),
-			beat({ durationSeconds: 5 }),
-			beat({ durationSeconds: 1 }),
-			beat({ durationSeconds: 7 }),
+			beat({ durationSeconds: 5 }), // over the cap → clamped to 2
+			beat(), // missing → defaults to 1
+			beat({ durationSeconds: 1.5 }),
 		];
-		const placed = assignTimecodes(beats, { windowSeconds: 15 });
-		expect(placed.map((p) => p.durationSeconds)).toEqual([2, 5, 1, 7]);
-		// Timecodes follow the variable durations, not 1-per-second.
-		expect(placed[3].timecode).toEqual({ startSeconds: 8, endSeconds: 15 });
-		const total = placed.reduce((s, p) => s + p.durationSeconds, 0);
-		expect(total).toBeLessThanOrEqual(MAX_SHEET_SECONDS);
+		const placed = assignTimecodes(beats);
+		expect(placed.map((p) => p.durationSeconds)).toEqual([2, 2, 1, 1.5]);
+		// Every panel respects the per-panel cap.
+		for (const p of placed) {
+			expect(p.durationSeconds).toBeLessThanOrEqual(MAX_PANEL_SECONDS);
+		}
 		expect(validateSheet(placed).valid).toBe(true);
 	});
 
+	test("validateSheet flags a panel longer than the 2s per-panel cap", () => {
+		const placed = [placedBeat(1, 1, 0), placedBeat(2, 3, 1)];
+		const result = validateSheet(placed);
+		expect(result.valid).toBe(false);
+		expect(result.errors.join(" ")).toMatch(/panel 2.*2s per-panel cap/);
+	});
+
 	test("validateSheet flags durations summing beyond the 15s window", () => {
-		const placed = assignTimecodes([beat({ durationSeconds: 10 }), beat({ durationSeconds: 9 })], {
-			windowSeconds: 19,
-		});
+		// 8 panels at the 2s cap sum to 16s > the 15s sheet window.
+		const placed = assignTimecodes(evenBeats(8, 2));
 		const result = validateSheet(placed);
 		expect(result.valid).toBe(false);
 		expect(result.errors.join(" ")).toMatch(/exceeding the 15s sheet window/);
 	});
 
 	test("validateSheet flags a panel count over the cap", () => {
-		const placed = assignTimecodes(evenBeats(16, 0.5), { windowSeconds: 8 });
+		const placed = assignTimecodes(evenBeats(16, 0.5));
 		const result = validateSheet(placed);
 		expect(result.valid).toBe(false);
 		expect(result.errors.join(" ")).toMatch(/exceeds cap/);
@@ -164,25 +189,25 @@ describe("composeStoryboardSheetPrompt panel cap", () => {
 	});
 });
 
-// ─── splitIntoSheets (15 / 30 / 60s) ──────────────────────────────────────────
+// ─── splitIntoSheets ──────────────────────────────────────────────────────────
 
 describe("splitIntoSheets", () => {
-	test("keeps a ≤15s video in a single sheet", () => {
-		const sheets = splitIntoSheets(evenBeats(5, 3), 15);
+	test("keeps a short-panel video that fits in 15s on a single sheet", () => {
+		const sheets = splitIntoSheets(evenBeats(5, 2), 10);
 		expect(sheets).toHaveLength(1);
 		expect(sheets[0].startSeconds).toBe(0);
-		expect(sheets[0].endSeconds).toBeCloseTo(15);
+		expect(sheets[0].endSeconds).toBeCloseTo(10);
 		expect(sheets[0].durationSeconds).toBeLessThanOrEqual(MAX_SHEET_SECONDS + 0.001);
 	});
 
-	test("splits a 30s video into two ≤15s sheets with continuing timecodes", () => {
-		const sheets = splitIntoSheets(evenBeats(10, 3), 30);
+	test("splits a >15s run of 1s panels into ≤15s sheets with continuing timecodes", () => {
+		const sheets = splitIntoSheets(evenBeats(20, 1), 20);
 		expect(sheets).toHaveLength(2);
 		expect(sheets[0].startSeconds).toBe(0);
 		expect(sheets[0].endSeconds).toBeCloseTo(15);
 		// Sheet 2 continues exactly where sheet 1 ended.
 		expect(sheets[1].startSeconds).toBeCloseTo(15);
-		expect(sheets[1].endSeconds).toBeCloseTo(30);
+		expect(sheets[1].endSeconds).toBeCloseTo(20);
 		// Panel numbers reset per sheet.
 		expect(sheets[1].beats[0].panel).toBe(1);
 		// Global timecodes do NOT reset.
@@ -192,13 +217,13 @@ describe("splitIntoSheets", () => {
 		expect(sheets[0].totalSheets).toBe(2);
 	});
 
-	test("splits a 60s video into four ≤15s sheets", () => {
-		const sheets = splitIntoSheets(evenBeats(20, 3), 60);
-		expect(sheets).toHaveLength(4);
+	test("every sheet stays within the ≤15s window", () => {
+		const sheets = splitIntoSheets(evenBeats(40, 1), 40);
+		expect(sheets.length).toBeGreaterThan(1);
 		for (const sheet of sheets) {
 			expect(sheet.durationSeconds).toBeLessThanOrEqual(MAX_SHEET_SECONDS + 0.001);
 		}
-		expect(sheets[3].endSeconds).toBeCloseTo(60);
+		expect(sheets[sheets.length - 1].endSeconds).toBeCloseTo(40);
 	});
 
 	test("opens a new sheet when the panel cap is reached even within 15s", () => {
@@ -220,8 +245,8 @@ describe("composeStoryboardSheets", () => {
 		const result = composeStoryboardSheets({
 			title: "Long Film",
 			style: "anime",
-			beats: evenBeats(10, 3),
-			durationSeconds: 30,
+			beats: evenBeats(10, 2),
+			durationSeconds: 20,
 		});
 		expect(result).toHaveLength(2);
 		for (const entry of result) {
@@ -245,9 +270,9 @@ describe("composeStoryboardSheetPrompt sections", () => {
 			{ name: "Bolt", description: "a dented copper robot", kind: "product" },
 		],
 		beats: [
-			beat({ shotType: "Wide", description: "Mira tinkers in her workshop", durationSeconds: 5 }),
-			beat({ shotType: "Close-up", description: "Bolt's eye flickers on", durationSeconds: 5 }),
-			beat({ shotType: "Medium", description: "They shake hands", durationSeconds: 5 }),
+			beat({ shotType: "Wide", description: "Mira tinkers in her workshop", durationSeconds: 2 }),
+			beat({ shotType: "Close-up", description: "Bolt's eye flickers on", durationSeconds: 2 }),
+			beat({ shotType: "Medium", description: "They shake hands", durationSeconds: 1 }),
 		],
 	});
 
@@ -272,14 +297,34 @@ describe("composeStoryboardSheetPrompt sections", () => {
 	});
 
 	test("bakes per-panel timecodes and captions into the scene breakdown", () => {
-		expect(prompt).toContain("Panel 1 [00:00-00:05]");
-		expect(prompt).toContain("Panel 3 [00:10-00:15]");
+		expect(prompt).toContain("Panel 1 [00:00-00:02]");
+		expect(prompt).toContain("Panel 3 [00:04-00:05]");
 		expect(prompt).toContain("Mira tinkers in her workshop");
 	});
 
 	test("weaves subject DNA for consistency", () => {
 		expect(prompt).toContain("Mira");
 		expect(prompt).toContain("Bolt");
+	});
+
+	test("instructs text-free shot content while permitting the brand logo", () => {
+		// No in-frame text inside the depicted shots.
+		expect(prompt).toMatch(/no words, captions, subtitles/i);
+		expect(prompt).toMatch(/watermarks/i);
+		// The only permitted in-frame text/graphic is the brand logo / brand assets.
+		expect(prompt).toMatch(/brand logo/i);
+	});
+
+	test("retains the storyboard's own panel-number / timecode / caption chrome", () => {
+		expect(prompt).toMatch(/panel number badge/i);
+		expect(prompt).toMatch(/timecode label/i);
+		expect(prompt).toMatch(/caption/i);
+		// The chrome is explicitly preserved as presentation chrome.
+		expect(prompt).toMatch(/presentation chrome/i);
+	});
+
+	test("describes each panel as a short shot of at most 2 seconds", () => {
+		expect(prompt).toMatch(/short shot of at most 2 seconds/i);
 	});
 });
 

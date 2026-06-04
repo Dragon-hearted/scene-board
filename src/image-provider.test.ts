@@ -1,154 +1,121 @@
 /**
- * Unit tests for the image-provider façade — focused on the FALLBACK trigger:
- * when Higgsfield (primary) fails, the request must fall back to the ImageEngine
- * HTTP client.
+ * Unit tests for the image-provider façade — now ImageEngine-only.
  *
- * We point `HIGGSFIELD_BIN` at a fake binary that always exits non-zero (so the
- * Higgsfield path always throws) and mock `./image-client` so the ImageEngine
- * leg is observable without a live server. `skipAuthCheck` bypasses the auth
- * probe so the spawn path is exercised directly.
+ * SceneBoard talks solely to ImageEngine over HTTP: `generateSingle` (with NO
+ * `model`, so ImageEngine serves its default provider) returns a gallery record,
+ * then `getImage(id)` is downloaded and written to the caller's `outPath`. Both
+ * are mocked from `./image-client` so no live server is needed.
  */
 
 import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-// Fake higgsfield binary. Shares the SAME path + mode-aware script as
-// higgsfield-client.test.ts so behaviour is identical regardless of which test
-// file evaluates higgsfield-client (and captures the module-level BINARY)
-// first. The provider tests pass a "MODE:cli" prompt to force a deterministic,
-// network-free Higgsfield failure so the ImageEngine fallback is exercised.
-const FAKE_SCRIPT = [
-	"#!/usr/bin/env bash",
-	"mode=success",
-	'for a in "$@"; do',
-	'  case "$a" in',
-	'    MODE:*) mode="${a#MODE:}" ;;',
-	"  esac",
-	"done",
-	'case "$mode" in',
-	'  auth) echo "Error: session expired, please log in" 1>&2; exit 1 ;;',
-	'  timeout) echo "Error: wait timeout exceeded before job finished" 1>&2; exit 1 ;;',
-	'  cli) echo "Error: something broke internally" 1>&2; exit 1 ;;',
-	'  badjson) echo "this is not json" ;;',
-	'  nourl) echo "[{\\"id\\":\\"job1\\",\\"results\\":[{\\"status\\":\\"done\\"}]}]" ;;',
-	'  success) echo "[{\\"id\\":\\"job1\\",\\"results\\":[{\\"url\\":\\"https://example.com/sheet.png\\"}]}]" ;;',
-	"esac",
-	"",
-].join("\n");
+const WORK_DIR = join(tmpdir(), "sb-image-provider-test");
 
-const FAKE_DIR = join(tmpdir(), "sb-higgsfield-client-test");
-mkdirSync(FAKE_DIR, { recursive: true });
-const FAKE_BIN = join(FAKE_DIR, "fake-higgsfield.sh");
-writeFileSync(FAKE_BIN, FAKE_SCRIPT, { mode: 0o755 });
-process.env.HIGGSFIELD_BIN = FAKE_BIN;
-
-// Mutable stub the mocked image-client delegates to (set per test).
+// Mutable stubs the mocked image-client delegates to (set per test).
 type GenSingle = (req: Record<string, unknown>) => Promise<Record<string, unknown>>;
-let generateSingleImpl: GenSingle = async () => {
-	throw new Error("image-engine unavailable");
-};
+let generateSingleImpl: GenSingle = async (req) => ({
+	id: "img_default",
+	imageUrl: "https://imageengine.local/out.png",
+	model: "gpt-image-2",
+	prompt: req.prompt,
+});
 const generateSingleCalls: Array<Record<string, unknown>> = [];
+
+let getImageImpl: (id: string) => Promise<Buffer> = async () => Buffer.from("PNGDATA");
+const getImageCalls: string[] = [];
 
 mock.module("./image-client", () => ({
 	generateSingle: (req: Record<string, unknown>) => {
 		generateSingleCalls.push(req);
 		return generateSingleImpl(req);
 	},
+	getImage: (id: string) => {
+		getImageCalls.push(id);
+		return getImageImpl(id);
+	},
 }));
 
 const { generateImage } = await import("./image-provider");
 
-describe("image-provider fallback", () => {
+describe("image-provider (ImageEngine-only)", () => {
 	beforeEach(() => {
+		mkdirSync(WORK_DIR, { recursive: true });
 		generateSingleCalls.length = 0;
+		getImageCalls.length = 0;
 	});
 
 	afterEach(() => {
+		generateSingleImpl = async (req) => ({
+			id: "img_default",
+			imageUrl: "https://imageengine.local/out.png",
+			model: "gpt-image-2",
+			prompt: req.prompt,
+		});
+		getImageImpl = async () => Buffer.from("PNGDATA");
+		rmSync(WORK_DIR, { recursive: true, force: true });
+	});
+
+	test("generates via ImageEngine and downloads the result to outPath", async () => {
+		getImageImpl = async () => Buffer.from("SHEETBYTES");
+		const outPath = join(WORK_DIR, "nested", "sheet.png");
+
+		const result = await generateImage({ prompt: "a clean storyboard", outPath });
+
+		expect(result.provider).toBe("image-engine");
+		expect(result.localPath).toBe(outPath);
+		expect(result.imageUrl).toBe("https://imageengine.local/out.png");
+		expect(result.model).toBe("gpt-image-2");
+		expect(result.imageId).toBe("img_default");
+		// The gallery image was downloaded by id and written to outPath.
+		expect(getImageCalls).toEqual(["img_default"]);
+		expect(readFileSync(outPath).toString()).toBe("SHEETBYTES");
+	});
+
+	test("omits `model` and forces an image so ImageEngine serves its default provider", async () => {
+		await generateImage({ prompt: "p", outPath: join(WORK_DIR, "o.png") });
+
+		expect(generateSingleCalls).toHaveLength(1);
+		expect(generateSingleCalls[0].model).toBeUndefined();
+		expect(generateSingleCalls[0].forceImage).toBe(true);
+		expect(generateSingleCalls[0].aspectRatio).toBe("16:9");
+		expect(generateSingleCalls[0].openaiQuality).toBe("high");
+	});
+
+	test("forwards referenceImageIds, systemInstruction, and id→sceneId", async () => {
+		await generateImage({
+			prompt: "p",
+			outPath: join(WORK_DIR, "o.png"),
+			aspectRatio: "9:16",
+			quality: "medium",
+			referenceImageIds: ["ref-a", "ref-b"],
+			systemInstruction: "stay consistent",
+			id: "sheet-1",
+		});
+
+		const call = generateSingleCalls[0];
+		expect(call.referenceImageIds).toEqual(["ref-a", "ref-b"]);
+		expect(call.systemInstruction).toBe("stay consistent");
+		expect(call.sceneId).toBe("sheet-1");
+		expect(call.aspectRatio).toBe("9:16");
+		expect(call.openaiQuality).toBe("medium");
+	});
+
+	test("does NOT send referenceImageIds when none are supplied", async () => {
+		await generateImage({ prompt: "p", outPath: join(WORK_DIR, "o.png") });
+		expect(generateSingleCalls[0].referenceImageIds).toBeUndefined();
+		expect(generateSingleCalls[0].systemInstruction).toBeUndefined();
+		expect(generateSingleCalls[0].sceneId).toBeUndefined();
+	});
+
+	test("propagates an ImageEngine failure", async () => {
 		generateSingleImpl = async () => {
 			throw new Error("image-engine unavailable");
 		};
-	});
-
-	test("falls back to ImageEngine (gpt-image-2) when Higgsfield fails", async () => {
-		generateSingleImpl = async (req) => ({
-			id: "img_1",
-			imageUrl: "https://imageengine.local/out.png",
-			model: req.model,
-			prompt: req.prompt,
-		});
-
-		const result = await generateImage(
-			{ prompt: "MODE:cli", outPath: join(FAKE_DIR, "o.png") },
-			{ skipAuthCheck: true },
+		await expect(generateImage({ prompt: "p", outPath: join(WORK_DIR, "o.png") })).rejects.toThrow(
+			/image-engine unavailable/,
 		);
-
-		expect(result.provider).toBe("image-engine");
-		expect(result.model).toBe("gpt-image-2");
-		expect(result.imageUrl).toBe("https://imageengine.local/out.png");
-		expect(generateSingleCalls).toHaveLength(1);
-		expect(generateSingleCalls[0].forceImage).toBe(true);
-	});
-
-	test("retries ImageEngine with gpt-image-1.5 when gpt-image-2 fails", async () => {
-		generateSingleImpl = async (req) => {
-			if (req.model === "gpt-image-2") throw new Error("primary model down");
-			return {
-				id: "img_2",
-				imageUrl: "https://imageengine.local/fallback.png",
-				model: req.model,
-				prompt: req.prompt,
-			};
-		};
-
-		const result = await generateImage(
-			{ prompt: "MODE:cli", outPath: join(FAKE_DIR, "o.png") },
-			{ skipAuthCheck: true },
-		);
-
-		expect(result.provider).toBe("image-engine");
-		expect(result.model).toBe("gpt-image-1.5");
-		expect(generateSingleCalls.map((c) => c.model)).toEqual(["gpt-image-2", "gpt-image-1.5"]);
-	});
-
-	test("forwards referenceImageIds and systemInstruction to ImageEngine", async () => {
-		generateSingleImpl = async (req) => ({
-			id: "img_3",
-			imageUrl: "https://imageengine.local/ref.png",
-			model: req.model,
-			prompt: req.prompt,
-		});
-
-		await generateImage(
-			{
-				prompt: "MODE:cli",
-				outPath: join(FAKE_DIR, "o.png"),
-				referenceImageIds: ["ref-a", "ref-b"],
-				systemInstruction: "stay consistent",
-			},
-			{ skipAuthCheck: true },
-		);
-
-		expect(generateSingleCalls[0].referenceImageIds).toEqual(["ref-a", "ref-b"]);
-		expect(generateSingleCalls[0].systemInstruction).toBe("stay consistent");
-	});
-
-	test("throws an aggregated error naming all providers when everything fails", async () => {
-		generateSingleImpl = async () => {
-			throw new Error("image-engine totally down");
-		};
-
-		const promise = generateImage(
-			{ prompt: "MODE:cli", outPath: join(FAKE_DIR, "o.png") },
-			{ skipAuthCheck: true },
-		);
-
-		await expect(promise).rejects.toThrow(/All image providers failed/);
-		await expect(promise).rejects.toThrow(/Higgsfield:/);
-		await expect(promise).rejects.toThrow(/ImageEngine gpt-image-2/);
-		await expect(promise).rejects.toThrow(/ImageEngine gpt-image-1.5/);
-		// Both ImageEngine models were attempted.
-		expect(generateSingleCalls.map((c) => c.model)).toEqual(["gpt-image-2", "gpt-image-1.5"]);
 	});
 });

@@ -35,16 +35,17 @@
 | **Composite multi-panel storyboard sheet (Phase 1)** | Renders ONE multi-panel sheet image per block — header bar, numbered panel grid, and per-panel timecodes + one-line shot captions baked into a single render — not one image per scene (src/storyboard-sheet-prompt.ts, sections A–H). |
 | **Phase 2 cinematic video prompt** | Per-shot timed prompt (timecode, SHOT N, shot type + camera, scene direction, dialogue, SFX, camera-movement verb) ready to paste into an AI video tool; always ends with the fixed Audio closing line (src/video-prompt.ts). |
 | **≤15s multi-sheet splitting** | Videos longer than 15s split into N sheets (one per ≤15s block) with continuing timecodes across sheets (splitIntoSheets, src/storyboard-sheet-prompt.ts). |
-| **Variable-duration timecoded panels** | Panels may span more than one second; per-panel timecodes must sum to the sheet's ≤15s window with a grid-sized panel cap (assignTimecodes, validateSheet). |
+| **Short timecoded panels (≤2s, ~1s default)** | Each panel is a short shot of ≤2s, typically 1s: a beat without a duration defaults to 1s and an explicit one clamps to (0,2]s; per-panel timecodes sum to the sheet's ≤15s window with a grid-sized panel cap, and a >2s panel fails validateSheet (resolveDurations, assignTimecodes, validateSheet). |
+| **Text-free shot content** | The depicted shot inside every panel frame carries no words/captions/subtitles/signage/UI text/watermarks/lettering — only the brand logo and supplied brand assets — while the panel-number badge, timecode label, and one-line caption chrome are still rendered (buildLayoutDetails, buildArtDirectionFooter, buildRenderFooter). |
 | **Adaptive grid mapping** | Panel count maps to a grid — 9→3×3, 12→3×4, 15→3×5 (default), 20→4×5 — with rows×cols flipped for vertical 9:16 (gridForPanelCount). |
 | **4-view character reference sheets** | Generates a character sheet on neutral grey — FULL BODY FRONT / FULL BODY REAR / FRONT CLOSE-UP / PROFILE CLOSE-UP — filling [INSERT DESIRED STYLE] from the Style Anchor (composeCharacterSheetPrompt). |
 | **4-view product reference sheets** | Generates a photorealistic product sheet on neutral grey — FRONT THREE-QUARTER / REAR STRAIGHT-ON / FRONT CLOSE-UP / PROFILE LEFT (composeProductSheetPrompt). A storyboard may combine multiple character AND product sheets. |
 | **brand_category-routed reference reuse** | Reads brand_category (clothing \| product \| service) from client/{client}/brand.md to route caching: clothing → per-storyboard sheets; product/service → reusable common sheets (readBrandCategory, resolveSheetDir). |
 | **Reuse-vs-new model identity branch** | For clothing brands, re-renders a cached model identity (passed as reference images) wearing newly selected garments, or generates a fresh model (reuseModelIdentity). |
-| **Reference-image identity lock** | All approved reference sheets feed into composite-sheet generation as references, capped at the provider limit (~8 Higgsfield paths / 3 ImageEngine ids), prioritizing subjects appearing earliest/most often (resolveSheetReferences). |
+| **Reference-image identity lock** | All approved reference sheets feed into composite-sheet generation as references, capped at the ImageEngine limit (3 gallery ids), prioritizing subjects appearing earliest/most often (resolveSheetReferences). |
 | **Style Anchor system** | A locked Style Anchor (palette, render style, lighting, camera/character/product rules) is folded into every sheet and reference-sheet prompt to enforce cross-panel/cross-sheet visual consistency. |
 | **Dynamic approval-gated workflow** | Every component (script, voice script, on-screen text, scene breakdown, visual direction, sheet, video prompt) is locked if provided in the brief, or generated as ≥2 options behind an [A]pprove/[M]odify/[R]eject gate if missing. |
-| **Higgsfield-primary provider façade with ImageEngine fallback** | generateImage() (src/image-provider.ts) shells out to the Higgsfield CLI (gpt_image_2) first and silently falls back to the ImageEngine HTTP service (gpt-image-2 → gpt-image-1.5) on any auth/timeout/CLI failure, logging which transport served. |
+| **ImageEngine-only provider façade** | generateImage() (src/image-provider.ts) calls the ImageEngine HTTP service with NO model (so ImageEngine serves its default GPT Image 2 provider), downloads the result via getImage(id), writes it to outPath, and returns the gallery imageId for reference chaining. |
 | **Reference-based iterate flow** | Change one panel by passing the approved sheet back as a reference with a 'reproduce exactly, change only Panel N' instruction and regenerating the full sheet; full-sheet re-runs and Phase 2 regeneration without redoing the pipeline (.claude/skills/scene-board/iterate-storyboard.md). |
 | **Client brand-profile management** | Per-client brand profiles under client/{client}/ (brand.md positioning, voice, visual direction, brand_category) auto-loaded into the pipeline (.claude/skills/scene-board/manage-client.md). |
 | **PDF storyboard generation** | scripts/generate-pdf.sh converts a storyboard markdown into a styled A4 PDF via md-to-pdf, embedding the sheet image(s), Phase 1 prompt, panel/timecode table, and Phase 2 prompt (templates/pdf-styles.css). |
@@ -77,9 +78,7 @@ SceneBoard processes data through a multi-stage pipeline.
 ### Prerequisites
 
 - Bun v1.0+ — curl -fsSL https://bun.sh/install | bash (verified with bun 1.3.6)
-- Higgsfield CLI (PRIMARY image transport, environment prerequisite — NOT a package.json dep) — npm install -g @higgsfield/cli (or the install.sh / brew higgsfield-ai/tap/higgsfield). Verified: higgsfield 0.1.40.
-- Higgsfield auth — one-time `higgsfield auth login` (opens browser; creds in ~/.config/higgsfield). Unauthenticated → automatic ImageEngine fallback.
-- ImageEngine HTTP service (FALLBACK image transport) running at http://localhost:3002 — used whenever Higgsfield is unavailable/unauthenticated/fails.
+- ImageEngine HTTP service (the SOLE image transport) running at http://localhost:3002 — SceneBoard sends every image request here with no model, so ImageEngine serves its default GPT Image 2 provider and manages auth/cost/rate-limits centrally.
 - md-to-pdf (installed via `bun install`; package.json dep ^5.2.4) — only needed for PDF output. Verified: 5.2.5.
 
 ### Install
@@ -107,7 +106,7 @@ cd systems/scene-board && bun install
 bun test
 ```
 
-> **Expected:** VERIFIED: 91 pass, 0 fail, 199 expect() calls across 5 files (prompt composer, video prompt, reference sheet, higgsfield client, provider fallback).
+> **Expected:** Pass across 4 files (prompt composer, video prompt, reference sheet, ImageEngine provider) — prompt composer, short-panel duration, text-free shot content, and the ImageEngine download path.
 
 ### 3. Lint / format check
 
@@ -125,23 +124,15 @@ bun run build
 
 > **Expected:** VERIFIED: 'Bundled 1 module' → dist/index.js (system metadata entry point; the storyboard flow itself is a library + skill).
 
-### 5. Check Higgsfield CLI auth (primary image transport)
+### 5. Confirm the ImageEngine service is reachable (sole image transport)
 
 ```bash
-bun run higgsfield-auth
+curl -fsS http://localhost:3002/api/budget
 ```
 
-> **Expected:** Runs `higgsfield account status`. VERIFIED authenticated: prints account email, plan, and remaining credits. Unauthenticated/exit≠0 → pipeline falls back to ImageEngine.
+> **Expected:** Returns the ImageEngine budget JSON when the service is running. SceneBoard performs all image generation through this service with no model, so ImageEngine serves its default GPT Image 2 provider.
 
-### 6. Confirm the GPT Image 2 model surface (no credits consumed)
-
-```bash
-higgsfield model get gpt_image_2 --json
-```
-
-> **Expected:** VERIFIED: JSON schema for gpt_image_2 — params aspect_ratio (1:1|4:3|3:4|16:9|9:16|3:2|2:3, default 1:1), quality (low|medium|high, default high), resolution (1k|2k|4k, default 2k), prompt (required), medias[], batch_size. Requires Higgsfield auth.
-
-### 7. See the skill-driven entry notice (there is no storyboard CLI)
+### 6. See the skill-driven entry notice (there is no storyboard CLI)
 
 ```bash
 bun run storyboard   # or: just storyboard
@@ -149,15 +140,15 @@ bun run storyboard   # or: just storyboard
 
 > **Expected:** VERIFIED: prints 'scene-board is skill-driven — invoke the scene-board skill ... orchestrateStoryboard() ... is a library entry only' and exits 1. This is intentional, not an error.
 
-### 8. Create a storyboard (the real flow — via the skill, in Claude Code)
+### 7. Create a storyboard (the real flow — via the skill, in Claude Code)
 
 ```bash
 Invoke the `scene-board` skill (see .claude/skills/scene-board/SKILL.md), then choose [GS] Generate Storyboard
 ```
 
-> **Expected:** Runs the 8-stage approval-gated pipeline → composite sheet image(s) + Phase 2 video prompt + storyboard markdown under client/{client}/storyboards/{project}/. requires Higgsfield auth (or ImageEngine fallback) — not executed as a shell command (skill-driven, calls orchestrateStoryboard()).
+> **Expected:** Runs the 8-stage approval-gated pipeline → composite sheet image(s) + Phase 2 video prompt + storyboard markdown under client/{client}/storyboards/{project}/. Requires the ImageEngine HTTP service running — not executed as a shell command (skill-driven, calls orchestrateStoryboard()).
 
-### 9. Render a storyboard markdown to PDF
+### 8. Render a storyboard markdown to PDF
 
 ```bash
 bun run generate-pdf path/to/storyboard.md   # or: bash scripts/generate-pdf.sh <input.md> [output.pdf]
@@ -176,7 +167,6 @@ bun run generate-pdf path/to/storyboard.md   # or: bash scripts/generate-pdf.sh 
 | `bun run lint` | biome check . (lint/format gate). |
 | `bun run check` | biome check --write . (auto-fix lint/format). |
 | `bun run storyboard  (alias: just sheet)` | Prints the skill-driven entry notice and exits 1 — no standalone CLI. |
-| `bun run higgsfield-auth` | higgsfield account status — check the primary image-transport auth. |
 | `bun run generate-pdf <input.md> [output.pdf]` | Convert a storyboard markdown to a styled PDF (scripts/generate-pdf.sh + md-to-pdf). |
 
 ---
@@ -185,7 +175,7 @@ bun run generate-pdf path/to/storyboard.md   # or: bash scripts/generate-pdf.sh 
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `IMAGE_ENGINE_URL` | No | Base URL of the ImageEngine fallback HTTP service. Defaults to http://localhost:3002. The justfile loads a local .env (set dotenv-load). |
+| `IMAGE_ENGINE_URL` | No | Base URL of the ImageEngine HTTP service (the sole image transport). Defaults to http://localhost:3002. The justfile loads a local .env (set dotenv-load). |
 
 ---
 
@@ -214,7 +204,6 @@ scene-board/
 │   ├── acceptance-criteria.md
 │   ├── dependencies.md
 │   ├── domain.md
-│   ├── higgsfield-cli.md
 │   ├── history.md
 │   ├── index.md
 │   ├── nanobanana-pro-prompt-guide.md
@@ -225,8 +214,6 @@ scene-board/
 │   └── generate-pdf.sh
 ├── src
 │   ├── batch-generator.ts
-│   ├── higgsfield-client.test.ts
-│   ├── higgsfield-client.ts
 │   ├── image-client.ts
 │   ├── image-provider.test.ts
 │   ├── image-provider.ts
