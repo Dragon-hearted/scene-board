@@ -44,7 +44,7 @@
 | **Reference-image identity lock** | All approved reference sheets feed into composite-sheet generation as references, capped at the provider limit (~8 Higgsfield paths / 3 ImageEngine ids), prioritizing subjects appearing earliest/most often (resolveSheetReferences). |
 | **Style Anchor system** | A locked Style Anchor (palette, render style, lighting, camera/character/product rules) is folded into every sheet and reference-sheet prompt to enforce cross-panel/cross-sheet visual consistency. |
 | **Dynamic approval-gated workflow** | Every component (script, voice script, on-screen text, scene breakdown, visual direction, sheet, video prompt) is locked if provided in the brief, or generated as ≥2 options behind an [A]pprove/[M]odify/[R]eject gate if missing. |
-| **Higgsfield-primary provider façade with ImageEngine fallback** | generateImage() (src/image-provider.ts) shells out to the Higgsfield CLI (gpt_image_2) first and silently falls back to the ImageEngine HTTP service (gpt-image-2 → gpt-image-1.5) on any auth/timeout/CLI failure, logging which transport served. |
+| **Aporto-primary provider façade with Higgsfield + ImageEngine fallbacks** | `generateImage()` (src/image-provider.ts) calls the Aporto skill network (skill 67 "GPT Image Text-to-Image 2 2K") first, falls through to the Higgsfield CLI (`gpt_image_2`) when `APORTO_API_KEY` is unset, and finally to the ImageEngine HTTP service (`gpt-image-2` → `gpt-image-1.5`) on any Aporto/Higgsfield failure. Logs which transport served. |
 | **Reference-based iterate flow** | Change one panel by passing the approved sheet back as a reference with a 'reproduce exactly, change only Panel N' instruction and regenerating the full sheet; full-sheet re-runs and Phase 2 regeneration without redoing the pipeline (.claude/skills/scene-board/iterate-storyboard.md). |
 | **Client brand-profile management** | Per-client brand profiles under client/{client}/ (brand.md positioning, voice, visual direction, brand_category) auto-loaded into the pipeline (.claude/skills/scene-board/manage-client.md). |
 | **PDF storyboard generation** | scripts/generate-pdf.sh converts a storyboard markdown into a styled A4 PDF via md-to-pdf, embedding the sheet image(s), Phase 1 prompt, panel/timecode table, and Phase 2 prompt (templates/pdf-styles.css). |
@@ -77,9 +77,10 @@ SceneBoard processes data through a multi-stage pipeline.
 ### Prerequisites
 
 - Bun v1.0+ — curl -fsSL https://bun.sh/install | bash (verified with bun 1.3.6)
-- Higgsfield CLI (PRIMARY image transport, environment prerequisite — NOT a package.json dep) — npm install -g @higgsfield/cli (or the install.sh / brew higgsfield-ai/tap/higgsfield). Verified: higgsfield 0.1.40.
+- **Aporto API key** (PRIMARY image transport, runtime env) — get from https://app.aporto.tech/settings → Settings → API keys. When set, the pipeline routes image generation through Aporto's skill network (skill 67 "GPT Image Text-to-Image 2 2K"). When unset, the provider silently falls back to Higgsfield → ImageEngine.
+- Higgsfield CLI (FALLBACK image transport, environment prerequisite — NOT a package.json dep) — `npm install -g @higgsfield/cli` (or the install.sh / brew higgsfield-ai/tap/higgsfield). Verified: higgsfield 0.1.40. Only used when `APORTO_API_KEY` is unset.
 - Higgsfield auth — one-time `higgsfield auth login` (opens browser; creds in ~/.config/higgsfield). Unauthenticated → automatic ImageEngine fallback.
-- ImageEngine HTTP service (FALLBACK image transport) running at http://localhost:3002 — used whenever Higgsfield is unavailable/unauthenticated/fails.
+- ImageEngine HTTP service (FINAL FALLBACK image transport) running at http://localhost:3002 — used whenever Aporto and Higgsfield are both unavailable/unauthenticated/fails.
 - md-to-pdf (installed via `bun install`; package.json dep ^5.2.4) — only needed for PDF output. Verified: 5.2.5.
 
 ### Install
@@ -99,7 +100,7 @@ bun install
 cd systems/scene-board && bun install
 ```
 
-> **Expected:** Resolves and installs deps (md-to-pdf, @biomejs/biome, typescript, @types/bun). VERIFIED: '2 packages installed'.
+> **Expected:** Resolves and installs deps (@aporto-tech/sdk, md-to-pdf, @biomejs/biome, typescript, @types/bun). VERIFIED: '171 packages installed'.
 
 ### 2. Run the test suite
 
@@ -107,7 +108,7 @@ cd systems/scene-board && bun install
 bun test
 ```
 
-> **Expected:** VERIFIED: 91 pass, 0 fail, 199 expect() calls across 5 files (prompt composer, video prompt, reference sheet, higgsfield client, provider fallback).
+> **Expected:** VERIFIED: 98 pass, 0 fail, 214 expect() calls across 6 files (prompt composer, video prompt, reference sheet, higgsfield client, provider fallback, Aporto integration).
 
 ### 3. Lint / format check
 
@@ -115,7 +116,7 @@ bun test
 bun run lint
 ```
 
-> **Expected:** VERIFIED: 'Checked 27 files ... No fixes applied' (biome check clean). Use `bun run check` to auto-fix.
+> **Expected:** VERIFIED: 'Checked 29 files ... No fixes applied' (biome check clean). Use `bun run check` to auto-fix.
 
 ### 4. Build for production
 
@@ -185,7 +186,18 @@ bun run generate-pdf path/to/storyboard.md   # or: bash scripts/generate-pdf.sh 
 
 | Variable | Required | Description |
 |----------|----------|-------------|
+| `APORTO_API_KEY` | No (recommended) | Aporto API key. When set, the pipeline routes image generation through the Aporto skill network (skill 67 — GPT Image 2 2K). Get one at https://app.aporto.tech/settings. When unset, the provider falls back to the Higgsfield CLI then the ImageEngine HTTP service. |
 | `IMAGE_ENGINE_URL` | No | Base URL of the ImageEngine fallback HTTP service. Defaults to http://localhost:3002. The justfile loads a local .env (set dotenv-load). |
+| `IMAGE_ENGINE_TIMEOUT_MS` | No | Per-request timeout for the ImageEngine HTTP call (ms). Defaults to 120000. |
+| `HIGGSFIELD_BIN` | No | Path to the Higgsfield CLI binary. Defaults to `higgsfield` (must be on `$PATH`). |
+
+### Maintainer attribution (`integration_id`)
+
+The repository carries a code-level `integration_id` constant in `src/aporto.ts` (`"APORTO_INTEGRATION_ID"`) that is sent with every Aporto call so usage from this distributed code can be attributed back to the maintainer per the Aporto referral program.
+
+This is **not** a secret and **not** an env var. It is intentionally committed to source so attribution cannot be silently turned off by a user. Before merging the integration upstream, replace the placeholder with your own integration ID from the Aporto Dashboard (https://app.aporto.tech). Runtime authentication still uses `APORTO_API_KEY`.
+
+The Aporto skill IDs (67 = GPT Image 2 2K, 68 = GPT Image 2 1K) were picked once via `aporto discover` during integration and are pinned in `src/aporto.ts` as `APORTO_SKILLS`. End users do not need to run discovery at runtime.
 
 ---
 

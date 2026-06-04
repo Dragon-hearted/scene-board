@@ -3,15 +3,19 @@
  * generator and the reference-sheet generator use to produce an image.
  *
  * Strategy:
- *   1. PRIMARY  — Higgsfield CLI (gpt_image_2) → downloads image to outPath.
- *   2. FALLBACK — ImageEngine HTTP client (gpt-image-2, then gpt-image-1.5 on
+ *   1. PRIMARY  — Aporto skill network (skill 67 "GPT Image Text-to-Image 2 2K")
+ *      Used when APORTO_API_KEY is set; returns a remote imageUrl.
+ *   2. FALLBACK — Higgsfield CLI (gpt_image_2) → downloads image to outPath.
+ *   3. FALLBACK — ImageEngine HTTP client (gpt-image-2, then gpt-image-1.5 on
  *      its own failure). Reuses src/image-client.ts UNCHANGED as transport.
  *
- * Any Higgsfield failure (auth, timeout, CLI, no-URL) silently falls back to
- * ImageEngine so the pipeline keeps working when the CLI is logged out or down.
- * The provider logs which transport served each request.
+ * Any Aporto failure (missing key, network, skill error) silently falls back
+ * to Higgsfield so the pipeline keeps working with zero Aporto dependency.
+ * When Higgsfield also fails (unauth, timeout, CLI missing), the chain falls
+ * through to ImageEngine. The provider logs which transport served.
  */
 
+import { APORTO_SKILLS, checkAportoAvailable, generateImageWithAporto } from "./aporto";
 import {
 	type HiggsfieldAspectRatio,
 	type HiggsfieldQuality,
@@ -30,7 +34,7 @@ export type ProviderQuality = "low" | "medium" | "high";
 
 export type ProviderResolution = "1k" | "2k" | "4k";
 
-export type ImageProviderName = "higgsfield" | "image-engine";
+export type ImageProviderName = "aporto" | "higgsfield" | "image-engine";
 
 export interface ProviderImageRequest {
 	/** Full prompt body. */
@@ -116,6 +120,35 @@ export async function generateImage(
 	req: ProviderImageRequest,
 	opts: { skipAuthCheck?: boolean } = {},
 ): Promise<ProviderImageResult> {
+	// 0) Try Aporto first when APORTO_API_KEY is set — returns remote imageUrl.
+	//    Any failure silently falls through to Higgsfield.
+	if (checkAportoAvailable()) {
+		try {
+			const aportoResult = await generateImageWithAporto(
+				{
+					prompt: req.prompt,
+					aspectRatio: req.aspectRatio,
+					imageUrls:
+						req.referenceImagePaths && req.referenceImagePaths.length > 0
+							? req.referenceImagePaths
+							: undefined,
+				},
+				{ skillId: APORTO_SKILLS.imageGen2K },
+			);
+			logProvider("aporto", `${aportoResult.model} → ${aportoResult.imageUrl}`);
+			return {
+				imageUrl: aportoResult.imageUrl,
+				model: aportoResult.model,
+				provider: "aporto",
+				prompt: req.prompt,
+				id: req.id,
+			};
+		} catch (err) {
+			const message = err instanceof Error ? err.message : String(err);
+			console.error(`[image-provider] Aporto failed, falling back to Higgsfield — ${message}`);
+		}
+	}
+
 	// 1) Try Higgsfield (primary) unless we already know it's unauthenticated.
 	let higgsfieldErr: unknown;
 	try {
@@ -159,8 +192,12 @@ export async function generateImage(
 				secondaryErr instanceof Error ? secondaryErr.message : String(secondaryErr);
 			const higgsfieldMsg =
 				higgsfieldErr instanceof Error ? higgsfieldErr.message : String(higgsfieldErr);
+			const aportoMsg = checkAportoAvailable()
+				? "(see Aporto error above)"
+				: "(Aporto skipped — APORTO_API_KEY not set)";
 			throw new Error(
-				`All image providers failed. Higgsfield: ${higgsfieldMsg} | ` +
+				`All image providers failed. ${aportoMsg} | ` +
+					`Higgsfield: ${higgsfieldMsg} | ` +
 					`ImageEngine ${FALLBACK_PRIMARY_MODEL}: ${primaryMsg} | ` +
 					`ImageEngine ${FALLBACK_SECONDARY_MODEL}: ${secondaryMsg}`,
 			);
