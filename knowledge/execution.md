@@ -30,6 +30,9 @@ The skill runs its 8-stage pipeline end-to-end with its own gates:
 6. **Phase 1 Composite Sheet + Phase 2 Cinematic Video Prompt** — generate the sheet(s), then the video prompt after sheet approval.
 7. **Final Assembly** — compile the storyboard markdown + PDF.
 
+## Output location (do not get this wrong)
+All client brand profiles and storyboard outputs go under the **Adcelerate repository-root `client/`** directory (sibling of `systems/`, `apps/`) — i.e. `<repo-root>/client/{client}/...` — **NEVER** inside `systems/scene-board/`. If any step `cd`s into `systems/scene-board/` to run a `bun` driver, a bare `client/` path will create the folder in the wrong place; use an absolute repo-root path or `cd` back to the repo root before writing client files. Verify the new client lands beside the existing repo-root clients.
+
 ## Where the agent must check / supply input
 - **Client selection (stage 0)** — relay which client the storyboard is for (or "no client / one-off").
 - **Missing brand_category / platform / audience (stage 2)** — supply these if the brief or loaded brand profile does not already cover them.

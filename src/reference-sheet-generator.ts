@@ -156,6 +156,15 @@ export async function readBrandCategory(brandMdPath: string): Promise<BrandCateg
  * `brand_category`:
  *   - clothing → per-storyboard `client/{client}/storyboards/{project}/references/{slug}`
  *   - product/service → reusable `client/{client}/references/{slug}`
+ *
+ * ⚠️ CLIENT-ROOT INVARIANT: the default `clientRoot` is the RELATIVE string
+ * `"client"`, which MUST resolve to the Adcelerate **repo-root** `client/`
+ * directory (sibling of `systems/`, `apps/`) — i.e. the process cwd is expected
+ * to be the repo root. If a caller runs from a subdirectory (e.g. after
+ * `cd systems/scene-board` to run a `bun` driver), this bare `"client"` would
+ * create `systems/scene-board/client/` by mistake. Such callers MUST pass an
+ * absolute repo-root `clientRoot` (`<repo-root>/client`). See SKILL.md
+ * "Client Directory Structure" and knowledge/execution.md "Output location".
  */
 export function resolveSheetDir(opts: {
 	clientRoot?: string;
