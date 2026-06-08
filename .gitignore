@@ -41,8 +41,13 @@ Thumbs.db
 *.swo
 *~
 
-# Claude Code session data
+# Claude Code session data (any depth — agents leave these in subdirs e.g. knowledge/)
 .claude/data/
+**/.claude/
+**/logs/
+
+# Generated storyboard output belongs in the repo-root client/ tree, never the submodule
+output/
 
 # Security
 *.key
