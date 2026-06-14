@@ -21,6 +21,7 @@ function panel(over: Partial<PanelInput> = {}): PanelInput {
 		description: over.description ?? "Something happens.",
 		...(over.sceneName !== undefined && { sceneName: over.sceneName }),
 		...(over.dialogue !== undefined && { dialogue: over.dialogue }),
+		...(over.speaker !== undefined && { speaker: over.speaker }),
 		...(over.sfx !== undefined && { sfx: over.sfx }),
 		...(over.camera !== undefined && { camera: over.camera }),
 		...(over.durationSeconds !== undefined && { durationSeconds: over.durationSeconds }),
@@ -133,6 +134,24 @@ describe("composeVideoPrompt", () => {
 		});
 		expect(prompt).toContain("Dialogue: Mira: We did it!");
 		expect(prompt).toContain("SFX: whirring servos");
+	});
+
+	test("renders a labeled dialogue line when a speaker is attributed", () => {
+		const prompt = composeVideoPrompt({
+			style: "anime",
+			panels: [panel({ speaker: "Mira", dialogue: "We built this for you." })],
+			durationSeconds: 5,
+		});
+		expect(prompt).toContain("Dialogue: Mira — “We built this for you.”");
+	});
+
+	test('labels narration as VO when speaker is "vo"', () => {
+		const prompt = composeVideoPrompt({
+			style: "anime",
+			panels: [panel({ speaker: "VO", dialogue: "Built for you." })],
+			durationSeconds: 5,
+		});
+		expect(prompt).toContain("Dialogue: VO — “Built for you.”");
 	});
 
 	test("defaults dialogue to None and SFX to ambience when absent", () => {

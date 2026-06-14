@@ -69,8 +69,21 @@ export interface Beat {
 	shotType: string;
 	/** One-line scene description (becomes the panel caption). */
 	description: string;
-	/** Optional dialogue or action note ("None" allowed). */
+	/** Optional VISUAL action note — what happens on screen ("None" allowed). Never printed as dialogue. */
 	action?: string;
+	/**
+	 * Optional spoken line / voiceover text for this panel — the quoted content only
+	 * (e.g. `We built this for you.`). Printed as a separate, clearly-labeled caption
+	 * line BENEATH the frame (never rendered inside the depicted shot). Omit (or "None")
+	 * for silent panels.
+	 */
+	dialogue?: string;
+	/**
+	 * Optional speaker attribution for {@link dialogue}. A character name (e.g. `Mira`)
+	 * → `Mira: "…"`; the literal `VO` (case-insensitive) → `VO: "…"` for narration; omit
+	 * → generic `Dialogue: "…"`.
+	 */
+	speaker?: string;
 	/** Optional scene name used as a panel label. */
 	sceneName?: string;
 	/** Short panel duration in seconds (≤ 2). Omit to default to ~1s. */
@@ -540,10 +553,26 @@ function buildLayoutDetails(grid: Grid, panelCount: number): string {
 		"E) SHEET LAYOUT — Present it as a polished film/animation production storyboard sheet:",
 		`a neutral presentation board background, ${panelCount} evenly-sized rectangular panels in a clean ${grid.rows}×${grid.cols} grid with crisp gutters and thin borders between frames.`,
 		"Each panel depicts a short shot of at most 2 seconds, typically 1 second.",
-		"Each panel carries, baked into the image, the storyboard's own presentation chrome: a panel number badge in the top-left corner, a timecode label (e.g. 00:00-00:01) in the top-right corner, and a single one-line shot-description caption in a clean sans-serif typeface directly beneath the frame.",
-		"CRITICAL — TEXT-FREE SHOT CONTENT: the imagery INSIDE every panel frame (the depicted shot itself) must contain NO words, captions, subtitles, signage, on-screen UI text, watermarks, labels, or lettering of any kind — the depicted scene must be visually clean. The ONLY in-frame text or graphic permitted within the depicted shot is the brand logo and any supplied brand assets. This restriction applies ONLY to the DEPICTED SHOT CONTENT and does NOT remove the storyboard's own panel-number badge, top-right timecode label, or the one-line caption beneath each frame — those are presentation chrome and MUST still be rendered.",
+		"Each panel carries, baked into the image, the storyboard's own presentation chrome: a panel number badge in the top-left corner, a timecode label (e.g. 00:00-00:01) in the top-right corner, and — directly beneath the frame, in a clean sans-serif typeface — a caption block of up to two stacked lines: first a single one-line shot-description caption, then (only when that panel has spoken words) a separate, clearly-labeled dialogue/voiceover line in the form `Speaker: “line”` (a character name), `VO: “line”` (narration), or `Dialogue: “line”` (unattributed). The dialogue/VO text is printed ONLY in this caption block beneath the frame — never inside the depicted shot.",
+		"CRITICAL — TEXT-FREE SHOT CONTENT: the imagery INSIDE every panel frame (the depicted shot itself) must contain NO words, captions, subtitles, dialogue, speech bubbles, signage, on-screen UI text, watermarks, labels, or lettering of any kind — the depicted scene must be visually clean. The ONLY in-frame text or graphic permitted within the depicted shot is the brand logo and any supplied brand assets. This restriction applies ONLY to the DEPICTED SHOT CONTENT and does NOT remove the storyboard's own panel-number badge, top-right timecode label, the one-line shot caption, or the labeled dialogue/VO caption line beneath each frame — those are presentation chrome and MUST still be rendered.",
 		"Studio-quality typography, consistent alignment, generous margins, and a professional storyboard-presentation aesthetic.",
 	].join(" ");
+}
+
+/**
+ * Format a beat's spoken line into the labeled caption string printed beneath the
+ * panel, or `undefined` when the panel is silent. Label rule:
+ *   - speaker set and not "VO"  → `Mira: “We built this for you.”`
+ *   - speaker === "VO" (any case) → `VO: “Built for you.”`
+ *   - dialogue set, no speaker     → `Dialogue: “Built for you.”`
+ *   - no dialogue (or "none")      → undefined (no line emitted)
+ */
+export function formatPanelDialogue(beat: Pick<Beat, "dialogue" | "speaker">): string | undefined {
+	const line = beat.dialogue?.trim();
+	if (!line || line.toLowerCase() === "none") return undefined;
+	const speaker = beat.speaker?.trim();
+	const label = !speaker ? "Dialogue" : speaker.toLowerCase() === "vo" ? "VO" : speaker;
+	return `${label}: “${line}”`;
 }
 
 function buildSceneBreakdown(beats: PlacedBeat[], subjects: SubjectDNA[] | undefined): string {
@@ -569,7 +598,13 @@ function buildSceneBreakdown(beats: PlacedBeat[], subjects: SubjectDNA[] | undef
 			segments.push(`Keep ${subj.name} consistent: ${subj.description.trim()}.`);
 		}
 		if (beat.action && beat.action.trim().toLowerCase() !== "none") {
-			segments.push(`Action/Dialogue: ${beat.action.trim()}.`);
+			segments.push(`On-screen action: ${beat.action.trim()}.`);
+		}
+		const dialogueCaption = formatPanelDialogue(beat);
+		if (dialogueCaption) {
+			segments.push(
+				`Caption line beneath the frame (dialogue/VO — print verbatim, NOT inside the shot): ${dialogueCaption}.`,
+			);
 		}
 		lines.push(segments.join(" "));
 	}
@@ -578,7 +613,7 @@ function buildSceneBreakdown(beats: PlacedBeat[], subjects: SubjectDNA[] | undef
 
 function buildArtDirectionFooter(input: StoryboardSheetPromptInput): string {
 	const profile = styleProfile(input.style);
-	return `G) ART DIRECTION — ${profile.artDirection} Vary shot types across the sequence (never repeat the same shot type in consecutive panels) and escalate emotional intensity toward the climax. Keep the depicted shot content text-free: no words, captions, subtitles, signage, on-screen UI text, watermarks, labels, or lettering inside the frames — the only permitted in-frame text/graphic is the brand logo and supplied brand assets (the storyboard's own panel-number badges, timecode labels, and one-line captions remain).`;
+	return `G) ART DIRECTION — ${profile.artDirection} Vary shot types across the sequence (never repeat the same shot type in consecutive panels) and escalate emotional intensity toward the climax. Keep the depicted shot content text-free: no words, captions, subtitles, dialogue, speech bubbles, signage, on-screen UI text, watermarks, labels, or lettering inside the frames — the only permitted in-frame text/graphic is the brand logo and supplied brand assets (the storyboard's own panel-number badges, timecode labels, one-line shot captions, and labeled dialogue/VO caption lines beneath each frame remain).`;
 }
 
 function buildRenderFooter(aspect: AspectRatio): string {
@@ -586,8 +621,8 @@ function buildRenderFooter(aspect: AspectRatio): string {
 		"H) RENDERING & FORMAT —",
 		`Output a single masterpiece-quality, production-ready composite storyboard sheet at ${aspect} aspect ratio.`,
 		"Each panel depicts a short shot of at most 2 seconds, typically 1 second.",
-		"Keep the depicted shot content text-free — no words, captions, subtitles, signage, on-screen UI text, watermarks, or lettering inside the frames; the only permitted in-frame text/graphic is the brand logo and supplied brand assets — while STILL rendering the storyboard's own panel-number badges, top-right timecode labels, and one-line shot captions as presentation chrome.",
-		"Sharp focus, high detail, clean legible captions and timecodes, and a cohesive look across every panel. This is one professional storyboard presentation sheet, not separate images.",
+		"Keep the depicted shot content text-free — no words, captions, subtitles, dialogue, speech bubbles, signage, on-screen UI text, watermarks, or lettering inside the frames; the only permitted in-frame text/graphic is the brand logo and supplied brand assets — while STILL rendering the storyboard's own panel-number badges, top-right timecode labels, one-line shot captions, and the labeled dialogue/VO caption lines beneath each frame as presentation chrome.",
+		"Sharp focus, high detail, clean legible captions, dialogue/VO lines, and timecodes, and a cohesive look across every panel. This is one professional storyboard presentation sheet, not separate images.",
 	].join(" ");
 }
 
@@ -673,6 +708,8 @@ export function composeStoryboardSheets(
 				shotType: b.shotType,
 				description: b.description,
 				action: b.action,
+				dialogue: b.dialogue,
+				speaker: b.speaker,
 				sceneName: b.sceneName,
 				durationSeconds: b.durationSeconds,
 			})),

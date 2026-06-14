@@ -20,6 +20,7 @@ import {
 	assignTimecodes,
 	composeStoryboardSheetPrompt,
 	composeStoryboardSheets,
+	formatPanelDialogue,
 	formatSeconds,
 	formatTimecode,
 	gridForPanelCount,
@@ -33,6 +34,8 @@ function beat(over: Partial<Beat> = {}): Beat {
 		shotType: over.shotType ?? "Medium",
 		description: over.description ?? "A scene description.",
 		...(over.action !== undefined && { action: over.action }),
+		...(over.dialogue !== undefined && { dialogue: over.dialogue }),
+		...(over.speaker !== undefined && { speaker: over.speaker }),
 		...(over.sceneName !== undefined && { sceneName: over.sceneName }),
 		...(over.durationSeconds !== undefined && { durationSeconds: over.durationSeconds }),
 	};
@@ -325,6 +328,86 @@ describe("composeStoryboardSheetPrompt sections", () => {
 
 	test("describes each panel as a short shot of at most 2 seconds", () => {
 		expect(prompt).toMatch(/short shot of at most 2 seconds/i);
+	});
+});
+
+// ─── Labeled dialogue / VO captions ────────────────────────────────────────────
+
+describe("formatPanelDialogue", () => {
+	test("attributes a named speaker", () => {
+		expect(formatPanelDialogue({ speaker: "Mira", dialogue: "We built this for you." })).toBe(
+			"Mira: “We built this for you.”",
+		);
+	});
+
+	test("labels narration as VO (case-insensitive)", () => {
+		expect(formatPanelDialogue({ speaker: "vo", dialogue: "Built for you." })).toBe(
+			"VO: “Built for you.”",
+		);
+	});
+
+	test("falls back to a generic Dialogue label when no speaker is given", () => {
+		expect(formatPanelDialogue({ dialogue: "Built for you." })).toBe("Dialogue: “Built for you.”");
+	});
+
+	test('returns undefined for silent panels (absent or "none")', () => {
+		expect(formatPanelDialogue({})).toBeUndefined();
+		expect(formatPanelDialogue({ dialogue: "   " })).toBeUndefined();
+		expect(formatPanelDialogue({ dialogue: "None" })).toBeUndefined();
+		expect(formatPanelDialogue({ speaker: "Mira", dialogue: "none" })).toBeUndefined();
+	});
+});
+
+describe("composeStoryboardSheetPrompt dialogue captions", () => {
+	const prompt = composeStoryboardSheetPrompt({
+		title: "The Lost Robot",
+		brand: "ACME",
+		style: "3d",
+		beats: [
+			beat({
+				shotType: "Wide",
+				description: "Mira enters the lab",
+				speaker: "Mira",
+				dialogue: "We built this for you.",
+				durationSeconds: 2,
+			}),
+			beat({
+				shotType: "Medium",
+				description: "Slow push-in on the device",
+				speaker: "VO",
+				dialogue: "Built for you.",
+				durationSeconds: 2,
+			}),
+			beat({ shotType: "Close-up", description: "A silent reaction shot", durationSeconds: 1 }),
+		],
+	});
+
+	test("prints the labeled dialogue/VO line for speaking panels", () => {
+		expect(prompt).toContain("Mira: “We built this for you.”");
+		expect(prompt).toContain("VO: “Built for you.”");
+	});
+
+	test("marks the dialogue caption as printed beneath the frame, not inside the shot", () => {
+		expect(prompt).toMatch(/Caption line beneath the frame \(dialogue\/VO/i);
+		expect(prompt).toMatch(/NOT inside the shot/i);
+	});
+
+	test("describes the two-line caption block + labeled dialogue line in the layout section", () => {
+		expect(prompt).toMatch(/caption block of up to two stacked lines/i);
+		expect(prompt).toMatch(/labeled dialogue\/voiceover line/i);
+		// The labeled caption line is preserved as chrome by the text-free footers.
+		expect(prompt).toMatch(/labeled dialogue\/VO caption line/i);
+	});
+
+	test("emits no dialogue label for a silent panel", () => {
+		// The silent Close-up beat must not produce an empty 'Dialogue:' caption.
+		expect(prompt).not.toContain("Dialogue: “”");
+		expect(prompt).not.toMatch(/Dialogue:\s*“\s*”/);
+	});
+
+	test("keeps the depicted shot text-free except the brand logo even with dialogue present", () => {
+		expect(prompt).toMatch(/no words, captions, subtitles, dialogue/i);
+		expect(prompt).toMatch(/brand logo/i);
 	});
 });
 
