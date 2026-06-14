@@ -115,7 +115,8 @@ function placedBeatToPanel(beat: PlacedBeat): PanelInput {
 		shotType: beat.shotType,
 		description: beat.description,
 		...(beat.sceneName && { sceneName: beat.sceneName }),
-		...(beat.action && { dialogue: beat.action }),
+		...(beat.dialogue && { dialogue: beat.dialogue }),
+		...(beat.speaker && { speaker: beat.speaker }),
 		durationSeconds: beat.durationSeconds,
 	};
 }

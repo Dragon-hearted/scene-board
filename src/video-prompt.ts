@@ -39,8 +39,14 @@ export interface PanelInput {
 	description: string;
 	/** Scene name used in the "SHOT N — NAME" label. */
 	sceneName?: string;
-	/** Dialogue line(s). Accepts "Character: line" or raw text. */
+	/** Dialogue line(s) — the spoken text. Accepts "Character: line" or raw text. */
 	dialogue?: string;
+	/**
+	 * Optional speaker attribution for {@link dialogue}. When set, the Dialogue line is
+	 * rendered labeled — a character name → `Mira — “…”`, the literal `VO` → `VO — “…”`.
+	 * Omit to pass {@link dialogue} through verbatim.
+	 */
+	speaker?: string;
 	/** Sound-effect / ambient note for the shot. */
 	sfx?: string;
 	/** Camera-movement verb phrase (e.g. "slow dolly-in"). Auto-derived if absent. */
@@ -321,8 +327,18 @@ function renderShot(shot: TimedShot, cameraVerb: string): string {
 		`Action: ${shot.description.trim()}`,
 	];
 
-	const dialogue = shot.dialogue?.trim();
-	lines.push(`Dialogue: ${dialogue && dialogue.toLowerCase() !== "none" ? dialogue : "None"}`);
+	const spoken = shot.dialogue?.trim();
+	if (spoken && spoken.toLowerCase() !== "none") {
+		const speaker = shot.speaker?.trim();
+		// With a speaker, render a clearly-labeled line so the video model never confuses
+		// the scene action with the spoken line; without one, pass the dialogue through verbatim.
+		const value = speaker
+			? `${speaker.toLowerCase() === "vo" ? "VO" : speaker} — “${spoken}”`
+			: spoken;
+		lines.push(`Dialogue: ${value}`);
+	} else {
+		lines.push("Dialogue: None");
+	}
 
 	const sfx = shot.sfx?.trim();
 	lines.push(`SFX: ${sfx && sfx.length > 0 ? sfx : "natural ambience for the scene"}`);
