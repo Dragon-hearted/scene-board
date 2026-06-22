@@ -108,3 +108,13 @@ _Entries added by Execute Mode delivery._
 - **Validation**: fresh-context `adcelerate-validator` = **APPROVE WITH NOTES** (7/8 soft PASS, 1 PARTIAL). Applied all 3 notes: embedded Phase 1 A–H prompts inline, marked Shot 8 end-card as a post/Remotion overlay (not video-model-generated), added shampoo 3-view audit note.
 - **Provider note**: ImageEngine `:3002` **offline** → authenticated **Higgsfield CLI `gpt_image_2`** (2k/high; local `--image` refs) served all sheets, per SKILL-documented primary. `acceptance-criteria.md` v2 still says "ImageEngine SOLE transport" + "panels ≤2s" — both stale vs current SKILL.md (Higgsfield-primary, variable >2s panels).
 - **Delivered**: Yes.
+
+## 2026-06-22 — Storyboard for Dragonhearted Labs personal brand
+- **System**: SceneBoard (driver: skill, run directly — scene-board not in runtime Skill registry)
+- **Client**: dragonhearted_labs (brand_category: service)
+- **Brief**: "create a storyboard for my personal brand" → brand manifesto, 30s, 9:16 IG Reels, artifact/chrome-driven (on-brand defaults; user asked to skip gating and "just produce")
+- **Stages**: 0–7 completed; 4.5 (reference sheets) skipped (no on-camera subject)
+- **Output**: 2 composite sheets (3×3, 18 panels) via Higgsfield gpt_image_2 9:16 (ImageEngine :3002 down → CLI fallback); Phase 1 prompts + Phase 2 cinematic video prompt; markdown + PDF
+- **Saved to**: client/dragonhearted_labs/storyboards/brand-manifesto/
+- **Canvas**: pushed to run `dragonhearted-brand-manifesto` via /api/ingest (2 succeeded step nodes, snapshotted artifacts)
+- **Delivered**: Yes
